@@ -48,7 +48,7 @@ app.post('/api/register', async (req, res) => {
     try {
         const { username, email, password, studentId, university, major, phone } = req.body;
         
-        if (!email.endsWith('sm.imamu.edu.sa')) {
+        if (!email.endsWith('@sm.imamu.edu.sa')) {
             return res.status(400).json({ error: 'Must use university email (sm.imamu.edu.sa)' });
         }
         
