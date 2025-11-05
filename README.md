@@ -9,10 +9,32 @@ A Modern ride-sharing App **exclusively for imam university**.
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=node.js&logoColor=white)
 ![Socket.io](https://img.shields.io/badge/Socket.io-010101?style=flat&logo=socket.io&logoColor=white)
 
+## 📢 Latest Update: Multi-Tab Dashboard 🎉
+
+**November 5, 2025** - Complete dashboard redesign with 4-tab navigation system:
+
+✨ **New Features**:
+- 🏠 **Home Tab**: Request rides, interactive map, real-time chat
+- 📢 **Announcements Tab**: System notifications & university events
+- 🚗 **Driver Application**: Students can apply to become drivers
+- 👤 **Profile Tab**: User settings & statistics
+
+✨ **Smart Role-Based Access**:
+- **Students**: See all 4 tabs (full access)
+- **Faculty**: See 3 tabs (driver app hidden)
+- **Drivers**: Redirected to driver-dashboard.html
+
+✨ **Responsive Design**: Works on desktop, tablet, and mobile
+
+📖 **Full Documentation**: 8 guides included (see below)
+
+**→ [View Dashboard Documentation](#dashboard-documentation)**
+
 ## Table of Contents
 
 - [Overview](#overview)
 - [Key Features](#key-features)
+- [Dashboard Documentation](#dashboard-documentation)
 - [Project Structure](#project-structure)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -24,6 +46,38 @@ A Modern ride-sharing App **exclusively for imam university**.
 ## Overview
 
 Amam is a student ride-sharing platform that ensures safety through mandatory university verification. Both riders and drivers must be verified students, creating a trusted campus community for affordable, convenient transportation.
+
+## Dashboard Documentation
+
+**[📖 Dashboard Architecture Guide](./DASHBOARD_ARCHITECTURE.md)** - Technical implementation details
+- Multi-tab interface design (4 tabs for students, 3 for faculty)
+- Component structure and layout system
+- API integration patterns
+- Real-time Socket.IO events
+
+**[👥 User Guide](./DASHBOARD_GUIDE.md)** - Complete feature walkthrough
+- How to request a ride
+- Announcements and university events
+- Driver application process
+- Profile and settings management
+
+**[🔐 Authentication Flow](./LOGIN_REDIRECT_GUIDE.md)** - Role-based access
+- Login verification process
+- Role detection and tab visibility
+- Email verification requirements
+- Redirect logic for students, faculty, and drivers
+
+**[✅ QA Checklist](./IMPLEMENTATION_CHECKLIST.md)** - Testing procedures
+- 50+ manual test cases
+- Mobile responsiveness tests
+- API endpoint verification
+- Real-time feature testing
+
+**[📚 More Resources](./DOCUMENTATION_INDEX.md)** - Complete documentation index
+- Quick reference guide
+- Usage examples with real scenarios
+- Troubleshooting guide
+- Support contact information
 
 ## Features
 

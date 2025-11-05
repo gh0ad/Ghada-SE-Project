@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - Amam</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e40af, #2563eb);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            max-width: 900px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .login-form {
+            padding: 3rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .login-visual {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            padding: 3rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+
+        .login-visual h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .login-visual p {
+            font-size: 1.1rem;
+            text-align: center;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+        }
+
+        .features {
+            list-style: none;
+        }
+
+        .features li {
+            margin-bottom: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .features li::before {
+            content: "✓";
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #1e40af;
+            font-weight: 600;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.875rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+
+        .remember-forgot {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+        }
+
+        .remember-forgot a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        .remember-forgot a:hover {
+            text-decoration: underline;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(37, 99, 235, 0.4);
+        }
+
+        .login-btn:active {
+            transform: translateY(0);
+        }
+
+        .error-message {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            display: none;
+        }
+
+        .back-link {
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+
+        .back-link a {
+            color: #64748b;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .back-link a:hover {
+            color: #2563eb;
+        }
+
+        .logo {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .login-container {
+                grid-template-columns: 1fr;
+            }
+
+            .login-visual {
+                display: none;
+            }
+
+            .login-form {
+                padding: 2rem;
+            }
+        }
+
+        .info-box {
+            background: #dbeafe;
+            border-left: 4px solid #2563eb;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+            color: #1e40af;
+        }
+
+        .info-box strong {
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <!-- Login Form -->
+        <div class="login-form">
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <div class="logo">⚙️</div>
+                <h1 style="color: #1e40af;">Admin Portal</h1>
+            </div>
+
+            <div class="info-box">
+                <strong>🔐 Secure Access</strong>
+                Only authorized administrators can access this portal. Contact your system administrator if you don't have credentials.
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+
+            <form onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="Enter admin username" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Enter admin password" required>
+                </div>
+
+                <div class="remember-forgot">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
+                        <input type="checkbox" id="remember" style="width: auto;">
+                        Remember me
+                    </label>
+                    <!-- <a href="#forgot">Forgot password?</a> -->
+                </div>
+
+                <button type="submit" class="login-btn">Login to Admin Dashboard</button>
+            </form>
+
+            <div class="back-link">
+                <a href="index.html">← Back to Home</a>
+            </div>
+        </div>
+
+        <!-- Visual Section -->
+        <div class="login-visual">
+            <div class="logo" style="font-size: 3rem;">⚙️</div>
+            <h2>Admin Dashboard</h2>
+            <p>Manage drivers, announcements, and platform operations</p>
+            
+            <ul class="features">
+                <li>Verify driver applications</li>
+                <li>Create & manage announcements</li>
+                <li>Provide tech support services</li>
+                <li>Manage admin accounts</li>
+                <li>View platform analytics</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Default admin credentials
+        const DEFAULT_ADMIN = {
+            username: 'admin',
+            password: 'Admin@123456'
+        };
+
+        function handleLogin(event) {
+            event.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorMessage = document.getElementById('errorMessage');
+
+            // Get stored admin credentials from localStorage
+            let admins = JSON.parse(localStorage.getItem('adminCredentials') || '[]');
+            
+            // Check if this is the first login - add default admin
+            if (admins.length === 0) {
+                admins.push(DEFAULT_ADMIN);
+                localStorage.setItem('adminCredentials', JSON.stringify(admins));
+            }
+
+            // Verify credentials
+            const admin = admins.find(a => a.username === username && a.password === password);
+
+            if (admin) {
+                // Store admin session
+                sessionStorage.setItem('adminSession', JSON.stringify({
+                    username: username,
+                    loginTime: new Date().toISOString()
+                }));
+
+                if (document.getElementById('remember').checked) {
+                    localStorage.setItem('rememberedAdmin', username);
+                }
+
+                // Redirect to admin dashboard
+                window.location.href = 'admin-dashboard.html';
+            } else {
+                errorMessage.textContent = '❌ Invalid username or password. Please try again.';
+                errorMessage.style.display = 'block';
+            }
+        }
+
+        // Auto-fill remembered username
+        window.addEventListener('DOMContentLoaded', () => {
+            const remembered = localStorage.getItem('rememberedAdmin');
+            if (remembered) {
+                document.getElementById('username').value = remembered;
+            }
+        });
+    </script>
+</body>
+</html>

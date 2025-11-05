@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Dashboard - Amam</title>
+    <title>Dashboard - Amam</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * {
@@ -27,6 +27,9 @@
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 4px 15px rgba(30, 58, 138, 0.2);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
         .header-left {
@@ -49,6 +52,38 @@
             opacity: 0.9;
         }
 
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .nav-tab {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .nav-tab:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .nav-tab.active {
+            background: white;
+            color: #2563eb;
+        }
+
         .logout-btn {
             background: rgba(255, 255, 255, 0.2);
             color: white;
@@ -65,16 +100,34 @@
             color: #2563eb;
         }
 
-        /* Main Container */
-        .container {
+        /* Tab Content */
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* ===== HOME TAB ===== */
+        .home-container {
             display: grid;
             grid-template-columns: 400px 1fr 350px;
             height: calc(100vh - 100px);
             gap: 0;
         }
 
-        /* Ride Request Panel */
-        .ride-panel {
+        .request-panel {
             background: white;
             padding: 2rem;
             overflow-y: auto;
@@ -87,48 +140,48 @@
             color: #1e40af;
         }
 
+        .ride-form {
+            background: #f8fafc;
+            padding: 1.5rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+        }
+
         .form-group {
-            margin-bottom: 1.5rem;
+            margin-bottom: 1rem;
         }
 
         .form-group label {
             display: block;
             margin-bottom: 0.5rem;
+            color: #1e40af;
             font-weight: 600;
-            color: #1e3a8a;
+            font-size: 0.9rem;
         }
 
-        .form-input {
+        .form-group input, .form-group select {
             width: 100%;
-            padding: 0.875rem;
+            padding: 0.75rem;
             border: 2px solid #e2e8f0;
-            border-radius: 10px;
-            font-size: 1rem;
-            transition: all 0.3s;
-        }
-
-        .form-input:focus {
+            border-radius: 8px;
+            font-size: 0.95rem;
             outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
-        select.form-input {
-            cursor: pointer;
+        .form-group input:focus, .form-group select:focus {
+            border-color: #3b82f6;
         }
 
         .request-btn {
             width: 100%;
-            padding: 1rem;
             background: linear-gradient(135deg, #2563eb, #3b82f6);
             color: white;
             border: none;
+            padding: 1rem;
             border-radius: 10px;
-            font-size: 1.1rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
-            margin-top: 1rem;
         }
 
         .request-btn:hover {
@@ -136,71 +189,32 @@
             box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3);
         }
 
-        .request-btn:disabled {
-            background: #94a3b8;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .cancel-btn {
-            background: linear-gradient(135deg, #dc2626, #ef4444);
-            margin-top: 0.5rem;
-        }
-
-        /* Ride Status */
-        .ride-status {
-            margin-top: 2rem;
-            padding: 1.5rem;
-            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+        .active-ride {
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            border: 2px solid #10b981;
             border-radius: 15px;
-            border-left: 4px solid #3b82f6;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
         }
 
-        .status-title {
-            font-weight: 600;
+        .active-ride h3 {
+            color: #065f46;
             margin-bottom: 1rem;
-            color: #1e40af;
         }
 
-        .driver-info {
+        .ride-info {
+            margin-bottom: 1rem;
+        }
+
+        .info-row {
             display: flex;
             align-items: center;
-            gap: 1rem;
-            margin-top: 1rem;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+            color: #475569;
         }
 
-        .driver-avatar {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #3b82f6, #60a5fa);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-        }
-
-        .driver-details h4 {
-            margin-bottom: 0.25rem;
-            color: #1e40af;
-        }
-
-        .driver-details p {
-            font-size: 0.9rem;
-            color: #64748b;
-        }
-
-        .eta {
-            margin-top: 1rem;
-            padding: 0.75rem;
-            background: white;
-            border-radius: 8px;
-            text-align: center;
-            font-weight: 600;
-            color: #2563eb;
-        }
-
-        /* Map Container */
         .map-container {
             position: relative;
             background: #e2e8f0;
@@ -235,7 +249,6 @@
             background: #f1f5f9;
         }
 
-        /* Chat Panel */
         .chat-panel {
             background: white;
             display: flex;
@@ -334,177 +347,552 @@
             transform: scale(1.05);
         }
 
-        /* Typing Indicator */
-        .typing-indicator {
-            display: none;
-            padding: 0.5rem 1rem;
+        /* ===== ANNOUNCEMENTS TAB ===== */
+        .announcements-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .section {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            color: #1e40af;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .notification-item, .event-item {
+            background: #f8fafc;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .notification-item.info {
+            border-left-color: #3b82f6;
+        }
+
+        .notification-item.success {
+            border-left-color: #10b981;
+        }
+
+        .notification-item.warning {
+            border-left-color: #f59e0b;
+        }
+
+        .notification-item h4, .event-item h4 {
+            color: #1e40af;
+            margin-bottom: 0.5rem;
+        }
+
+        .notification-item p, .event-item p {
+            font-size: 0.95rem;
             color: #64748b;
-            font-style: italic;
-            font-size: 0.9rem;
+            line-height: 1.5;
         }
 
-        .typing-indicator.active {
-            display: block;
-        }
-
-        /* Status Badge */
-        .status-badge {
+        .event-date {
             display: inline-block;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.9rem;
+            background: #e0e7ff;
+            color: #3730a3;
+            padding: 0.25rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
             font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        /* ===== DRIVER APPLICATION TAB ===== */
+        .driver-app-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .driver-app-form {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .form-section {
+            margin-bottom: 2rem;
+        }
+
+        .form-section-title {
+            font-size: 1.2rem;
+            color: #1e40af;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
             margin-bottom: 1rem;
         }
 
-        .status-badge.searching {
-            background: #fef3c7;
-            color: #92400e;
+        .form-row.full {
+            grid-template-columns: 1fr;
         }
 
-        .status-badge.matched {
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 0.875rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3);
+        }
+
+        .driver-info-box {
             background: #d1fae5;
-            color: #065f46;
+            border: 2px solid #10b981;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
         }
 
-        .status-badge.arriving {
-            background: #dbeafe;
+        .driver-info-box h3 {
+            color: #065f46;
+            margin-bottom: 0.5rem;
+        }
+
+        .driver-info-box p {
+            color: #047857;
+            font-size: 0.95rem;
+        }
+
+        /* ===== PROFILE/SETTINGS TAB ===== */
+        .profile-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .profile-header {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .profile-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #60a5fa);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            margin: 0 auto 1rem;
+        }
+
+        .profile-header h2 {
+            font-size: 2rem;
             color: #1e40af;
+            margin-bottom: 0.5rem;
+        }
+
+        .profile-header p {
+            color: #64748b;
+            margin-bottom: 1.5rem;
+        }
+
+        .profile-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .stat {
+            background: #f0f9ff;
+            padding: 1rem;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #3b82f6;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #64748b;
+        }
+
+        .profile-form {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .profile-form-title {
+            font-size: 1.3rem;
+            color: #1e40af;
+            margin-bottom: 1.5rem;
+        }
+
+        .save-btn {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1.5rem;
+            transition: all 0.3s;
+        }
+
+        .save-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3);
         }
 
         @media (max-width: 1200px) {
-            .container {
+            .home-container {
                 grid-template-columns: 1fr;
-                grid-template-rows: auto 400px auto;
+                grid-template-rows: auto auto auto;
             }
 
-            .chat-panel {
-                max-height: 400px;
+            .announcements-container {
+                grid-template-columns: 1fr;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-tabs {
+                flex-wrap: wrap;
+                gap: 0.25rem;
+            }
+
+            .nav-tab {
+                padding: 0.5rem 1rem;
+                font-size: 0.85rem;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 1rem;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
+    <!-- Header with Navigation -->
     <header class="header">
         <div class="header-left">
-            <div class="logo">🎓</div>
+            <div class="logo">ō͡≡o</div>
             <div class="user-info">
-                <h2 id="welcomeUser">Welcome, Student!</h2>
-                <p id="userEmail">student@university.edu</p>
+                <h2 id="welcomeUser">Welcome, User!</h2>
+                <p id="userEmail">user@sm.imamu.edu.sa</p>
             </div>
         </div>
-        <button class="logout-btn" onclick="logout()">Logout</button>
+        <div class="header-actions">
+            <div class="nav-tabs">
+                <button class="nav-tab active" onclick="switchTab('home')">🏠 Home</button>
+                <button class="nav-tab" onclick="switchTab('announcements')">📢 Announcements</button>
+                <button class="nav-tab" id="driverTabBtn" onclick="switchTab('driver')">🚗 Driver Application</button>
+                <button class="nav-tab" onclick="switchTab('profile')">👤 Profile</button>
+            </div>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
     </header>
 
-    <!-- Main Container -->
-    <div class="container">
-        <!-- Ride Request Panel -->
-        <div class="ride-panel">
-            <h2 class="panel-title">🚗 Request a Ride</h2>
-            
-            <form id="rideForm">
-                <div class="form-group">
-                    <label for="pickup">Pickup Location</label>
-                    <input 
-                        type="text" 
-                        id="pickup" 
-                        class="form-input" 
-                        placeholder="Enter your current location"
-                        required
-                    >
+    <!-- HOME TAB -->
+    <div id="home" class="tab-content active">
+        <div class="home-container">
+            <!-- Request Panel -->
+            <div class="request-panel">
+                <h2 class="panel-title">🎫 Request a Ride</h2>
+
+                <div class="ride-form">
+                    <div class="form-group">
+                        <label for="pickupLocation">Pickup Location</label>
+                        <input type="text" id="pickupLocation" placeholder="Enter pickup location" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="destination">Destination</label>
+                        <input type="text" id="destination" placeholder="Enter destination" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="passengers">Number of Passengers</label>
+                        <input type="number" id="passengers" value="1" min="1" max="4" required>
+                    </div>
+                    <button class="request-btn" onclick="requestRide()">Request Ride</button>
                 </div>
 
-                <div class="form-group">
-                    <label for="destination">Destination</label>
-                    <select id="destination" class="form-input" required>
-                        <option value="">Select destination...</option>
-                        <option value="main-campus">Main Campus Building</option>
-                        <option value="library">University Library</option>
-                        <option value="dorms">Student Dormitories</option>
-                        <option value="metro-north">Metro Station - North</option>
-                        <option value="metro-south">Metro Station - South</option>
-                        <option value="metro-east">Metro Station - East</option>
-                        <option value="sports-complex">Sports Complex</option>
-                        <option value="cafeteria">Main Cafeteria</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="passengers">Number of Passengers</label>
-                    <select id="passengers" class="form-input" required>
-                        <option value="1">1 Passenger</option>
-                        <option value="2">2 Passengers</option>
-                        <option value="3">3 Passengers</option>
-                        <option value="4">4 Passengers</option>
-                    </select>
-                </div>
-
-                <button type="submit" class="request-btn" id="requestBtn">
-                    Find Driver
-                </button>
-                <button type="button" class="request-btn cancel-btn" id="cancelBtn" style="display: none;">
-                    Cancel Ride
-                </button>
-            </form>
-
-            <!-- Ride Status -->
-            <div id="rideStatus" style="display: none;">
-                <div class="ride-status">
-                    <span class="status-badge searching" id="statusBadge">Searching...</span>
-                    <h3 class="status-title" id="statusTitle">Finding your driver...</h3>
-                    
-                    <div id="driverInfo" style="display: none;">
-                        <div class="driver-info">
-                            <div class="driver-avatar" id="driverAvatar">👨‍🎓</div>
-                            <div class="driver-details">
-                                <h4 id="driverName">John Doe</h4>
-                                <p id="driverDetails">⭐ 4.9 • Computer Science, 3rd Year</p>
-                                <p id="vehicleInfo">🚗 Toyota Camry - ABC 123</p>
+                <!-- Active Ride Section -->
+                <div id="activeRideSection" style="display: none;">
+                    <div class="active-ride">
+                        <h3>🚗 Active Ride</h3>
+                        <div class="ride-info">
+                            <div class="info-row">
+                                <span>📍 Pickup:</span>
+                                <span id="activePickup">-</span>
                             </div>
-                        </div>
-                        <div class="eta" id="eta">
-                            Estimated arrival: <strong>5 minutes</strong>
+                            <div class="info-row">
+                                <span>🎯 Destination:</span>
+                                <span id="activeDestination">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span>🚗 Driver:</span>
+                                <span id="driverName">Waiting for driver...</span>
+                            </div>
+                            <div class="info-row">
+                                <span>💰 Fare:</span>
+                                <span id="rideFare">-</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Map Container -->
-        <div class="map-container">
-            <div id="map"></div>
-            <div class="map-controls">
-                <button class="map-btn" onclick="centerMap()" title="Center Map">📍</button>
-                <button class="map-btn" onclick="toggleTraffic()" title="Toggle Traffic">🚦</button>
-            </div>
-        </div>
-
-        <!-- Chat Panel -->
-        <div class="chat-panel">
-            <div class="chat-header">
-                💬 Chat with Driver
-            </div>
-            <div class="chat-messages" id="chatMessages">
-                <div class="message received">
-                    <div class="message-bubble">Welcome! Request a ride to start chatting with your driver.</div>
-                    <div class="message-time">System</div>
+            <!-- Map -->
+            <div class="map-container">
+                <div id="map"></div>
+                <div class="map-controls">
+                    <button class="map-btn" onclick="centerMap()" title="Center Map">📍</button>
+                    <button class="map-btn" onclick="updateLocation()" title="Update Location">🔄</button>
                 </div>
             </div>
-            <div class="typing-indicator" id="typingIndicator">
-                Driver is typing...
+
+            <!-- Chat Panel -->
+            <div class="chat-panel">
+                <div class="chat-header">💬 Chat with Driver</div>
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message received">
+                        <div class="message-bubble">Request a ride to start chatting with drivers.</div>
+                        <div class="message-time">System</div>
+                    </div>
+                </div>
+                <div class="chat-input-container">
+                    <input type="text" class="chat-input" id="chatInput" placeholder="Type a message..." disabled>
+                    <button class="send-btn" onclick="sendMessage()" disabled>Send</button>
+                </div>
             </div>
-            <div class="chat-input-container">
-                <input 
-                    type="text" 
-                    class="chat-input" 
-                    id="chatInput" 
-                    placeholder="Type a message..."
-                    disabled
-                >
-                <button class="send-btn" id="sendBtn" disabled onclick="sendMessage()">
-                    Send
-                </button>
+        </div>
+    </div>
+
+    <!-- ANNOUNCEMENTS TAB -->
+    <div id="announcements" class="tab-content">
+        <div class="announcements-container">
+            <!-- Notifications Section -->
+            <div class="section">
+                <h2 class="section-title">🔔 Notifications</h2>
+                <div id="notificationsList">
+                    <div class="notification-item info">
+                        <h4>Welcome to Amam!</h4>
+                        <p>You have successfully registered. Start requesting rides today!</p>
+                    </div>
+                    <div class="notification-item success">
+                        <h4>Email Verified</h4>
+                        <p>Your email has been verified. Your account is fully active.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Events Section -->
+            <div class="section">
+                <h2 class="section-title">📅 University Events</h2>
+                <div id="eventsList">
+                    <div class="event-item">
+                        <h4>🎓 Orientation Day</h4>
+                        <p>Annual orientation for new students at the main campus. Transportation will be provided.</p>
+                        <span class="event-date">Nov 15, 2025</span>
+                    </div>
+                    <div class="event-item">
+                        <h4>🏃‍♂️ Sports Festival</h4>
+                        <p>Join us for our annual sports festival with various activities and competitions.</p>
+                        <span class="event-date">Nov 22, 2025</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DRIVER APPLICATION TAB (Only for Students) -->
+    <div id="driver" class="tab-content">
+        <div class="driver-app-container">
+            <div class="driver-app-form">
+                <div class="driver-info-box">
+                    <h3>🚗 Become a Driver</h3>
+                    <p>Apply to become a driver and earn money by giving rides to other students. Your application will be reviewed by our admin team.</p>
+                </div>
+
+                <form onsubmit="submitDriverApplication(event)">
+                    <!-- Personal Info -->
+                    <div class="form-section">
+                        <h3 class="form-section-title">Personal Information</h3>
+                        <div class="form-row full">
+                            <div class="form-group">
+                                <label for="driverNameInput">Full Name</label>
+                                <input type="text" id="driverNameInput" readonly required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="driverPhoneInput">Phone Number</label>
+                                <input type="tel" id="driverPhoneInput" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="driverEmailInput">Email</label>
+                                <input type="email" id="driverEmailInput" readonly required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- License Info -->
+                    <div class="form-section">
+                        <h3 class="form-section-title">License Information</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="licenseNumber">License Number</label>
+                                <input type="text" id="licenseNumber" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="licenseExpiry">License Expiry Date</label>
+                                <input type="date" id="licenseExpiry" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Vehicle Info -->
+                    <div class="form-section">
+                        <h3 class="form-section-title">Vehicle Information</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="vehicleMake">Make</label>
+                                <input type="text" id="vehicleMake" placeholder="e.g., Toyota" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="vehicleModel">Model</label>
+                                <input type="text" id="vehicleModel" placeholder="e.g., Camry" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="vehicleYear">Year</label>
+                                <input type="number" id="vehicleYear" min="2000" max="2030" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="vehicleColor">Color</label>
+                                <input type="text" id="vehicleColor" required>
+                            </div>
+                        </div>
+                        <div class="form-row full">
+                            <div class="form-group">
+                                <label for="plateNumber">License Plate Number</label>
+                                <input type="text" id="plateNumber" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn">Submit Application</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- PROFILE/SETTINGS TAB -->
+    <div id="profile" class="tab-content">
+        <div class="profile-container">
+            <!-- Profile Header -->
+            <div class="profile-header">
+                <div class="profile-avatar">👤</div>
+                <h2 id="profileName">User Name</h2>
+                <p id="profileEmail">user@sm.imamu.edu.sa</p>
+                <div class="profile-stats">
+                    <div class="stat">
+                        <div class="stat-value" id="totalRides">0</div>
+                        <div class="stat-label">Total Rides</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="userRating">5.0★</div>
+                        <div class="stat-label">Rating</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="joinDate">Nov 2025</div>
+                        <div class="stat-label">Member Since</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile Form -->
+            <div class="profile-form">
+                <h3 class="profile-form-title">Edit Profile</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="profileUsername">Username</label>
+                        <input type="text" id="profileUsername" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="profilePhone">Phone Number</label>
+                        <input type="tel" id="profilePhone" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="profileUniversity">University</label>
+                        <input type="text" id="profileUniversity" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="profileMajor">Major</label>
+                        <input type="text" id="profileMajor" required>
+                    </div>
+                </div>
+                <button class="save-btn" onclick="saveProfile()">Save Changes</button>
             </div>
         </div>
     </div>
@@ -512,86 +900,29 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Initialize Socket.io
-        const socket = io();
-        
-        // Get user info from session
-        const username = sessionStorage.getItem('username') || 'Student';
-        const email = sessionStorage.getItem('email') || 'student@university.edu';
-        
-        document.getElementById('welcomeUser').textContent = `Welcome, ${username}!`;
-        document.getElementById('userEmail').textContent = email;
-
-        // Initialize Map
-        const map = L.map('map').setView([24.810822021104638, 46.710884594646124], 13); // Default: New York
-        
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-
-        let studentMarker, driverMarker, routeLine;
-        let rideActive = false;
-
-        // Add student marker
-        function addStudentMarker(lat, lng) {
-            if (studentMarker) {
-                studentMarker.setLatLng([lat, lng]);
-            } else {
-                const studentIcon = L.divIcon({
-                    html: '📍',
-                    className: 'student-marker',
-                    iconSize: [30, 30]
-                });
-                studentMarker = L.marker([lat, lng], { icon: studentIcon }).addTo(map);
-                studentMarker.bindPopup('Your Location').openPopup();
-            }
-            map.setView([lat, lng], 15);
-        }
-
-        // Add driver marker
-        function addDriverMarker(lat, lng) {
-            if (driverMarker) {
-                driverMarker.setLatLng([lat, lng]);
-            } else {
-                const driverIcon = L.divIcon({
-                    html: '🚗',
-                    className: 'driver-marker',
-                    iconSize: [30, 30]
-                });
-                driverMarker = L.marker([lat, lng], { icon: driverIcon }).addTo(map);
-                driverMarker.bindPopup('Your Driver');
-            }
-        }
-
-        // Get current location
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition((position) => {
-                addStudentMarker(position.coords.latitude, position.coords.longitude);
-            });
-        }
-
-        function centerMap() {
-            if (studentMarker) {
-                map.setView(studentMarker.getLatLng(), 15);
-            }
-        }
-
-        function toggleTraffic() {
-            alert('Traffic layer toggle (requires API integration)');
-        }
-
-        // Ride Request
-        const rideForm = document.getElementById('rideForm');
-        const requestBtn = document.getElementById('requestBtn');
-        const cancelBtn = document.getElementById('cancelBtn');
-        const rideStatus = document.getElementById('rideStatus');
-        const statusBadge = document.getElementById('statusBadge');
-        const statusTitle = document.getElementById('statusTitle');
-        const driverInfo = document.getElementById('driverInfo');
-        let currentRideId = null;
-
-        // Load user data
+        // Initialize
         let userData = null;
+        let socket = io();
+        let currentRide = null;
+        let userLocation = null;
+        let map, userMarker, driverMarker, routeLine;
+
+        // Tab Switching
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Load User Data
         window.onload = function() {
             const userDataStr = sessionStorage.getItem('userData');
             if (!userDataStr) {
@@ -600,148 +931,144 @@
             }
             userData = JSON.parse(userDataStr);
             
-            // Authenticate socket connection
+            // Update header
+            document.getElementById('welcomeUser').textContent = `Welcome, ${userData.username}!`;
+            document.getElementById('userEmail').textContent = userData.email;
+
+            // Hide driver tab for faculty/drivers
+            const driverTabBtn = document.getElementById('driverTabBtn');
+            if (userData.accountType !== 'student') {
+                driverTabBtn.style.display = 'none';
+            }
+
+            // Update profile page
+            document.getElementById('profileName').textContent = userData.username;
+            document.getElementById('profileEmail').textContent = userData.email;
+            document.getElementById('profileUsername').value = userData.username;
+            document.getElementById('profilePhone').value = userData.phone || '';
+            document.getElementById('profileUniversity').value = userData.university;
+            document.getElementById('profileMajor').value = userData.major || '';
+
+            // Update driver form (pre-fill known info)
+            document.getElementById('driverNameInput').value = userData.username;
+            document.getElementById('driverEmailInput').value = userData.email;
+            document.getElementById('driverPhoneInput').value = userData.phone || '';
+
+            // Initialize map
+            initializeMap();
+
+            // Authenticate socket
             socket.emit('authenticate', userData.id);
-            
-            // Load active rides
-            loadActiveRides();
         };
 
-        async function loadActiveRides() {
-            try {
-                const response = await fetch(`/api/rides/student/${userData.id}`);
-                const data = await response.json();
-                
-                if (data.rides && data.rides.length > 0) {
-                    const ride = data.rides[0]; // Get most recent
-                    currentRideId = ride.id;
-                    // Show ride status UI
-                    rideStatus.style.display = 'block';
-                    requestBtn.disabled = true;
-                    cancelBtn.style.display = 'block';
-                    rideActive = true;
+        // Initialize Map
+        function initializeMap() {
+            map = L.map('map').setView([24.810822, 46.710885], 13);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    userLocation = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    };
                     
-                    if (ride.driver_name) {
-                        statusBadge.className = 'status-badge matched';
-                        statusBadge.textContent = 'Driver Matched';
-                        driverInfo.style.display = 'block';
-                    }
-                }
-            } catch (error) {
-                console.error('Error loading rides:', error);
+                    const icon = L.divIcon({
+                        html: '📍',
+                        className: 'user-marker',
+                        iconSize: [30, 30]
+                    });
+                    
+                    userMarker = L.marker([userLocation.lat, userLocation.lng], { icon }).addTo(map);
+                    map.setView([userLocation.lat, userLocation.lng], 15);
+                });
             }
         }
 
-        rideForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const pickup = document.getElementById('pickup').value;
-            const destination = document.getElementById('destination').value;
-            const passengers = document.getElementById('passengers').value;
+        function centerMap() {
+            if (userMarker) {
+                map.setView(userMarker.getLatLng(), 15);
+            }
+        }
 
-            const studentPos = studentMarker ? studentMarker.getLatLng() : { lat: 24.7136, lng: 46.6753 };
-            
+        function updateLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    userLocation = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    };
+                    if (userMarker) {
+                        userMarker.setLatLng([userLocation.lat, userLocation.lng]);
+                    }
+                });
+            }
+        }
+
+        // Request Ride
+        async function requestRide() {
+            const pickup = document.getElementById('pickupLocation').value;
+            const destination = document.getElementById('destination').value;
+            const passengers = parseInt(document.getElementById('passengers').value);
+
+            if (!pickup || !destination) {
+                alert('Please fill in all fields');
+                return;
+            }
+
             try {
                 const response = await fetch('/api/rides', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${sessionStorage.getItem('authToken')}`
                     },
                     body: JSON.stringify({
                         studentId: userData.id,
-                        pickup: {
-                            location: pickup,
-                            lat: studentPos.lat,
-                            lng: studentPos.lng
-                        },
-                        destination: {
-                            location: destination,
-                            lat: studentPos.lat + 0.05,
-                            lng: studentPos.lng + 0.05
-                        },
-                        passengers: parseInt(passengers),
-                        fare: 5.00
+                        pickupLocation: pickup,
+                        pickupLat: userLocation?.lat || 24.810822,
+                        pickupLng: userLocation?.lng || 46.710885,
+                        destinationLocation: destination,
+                        destinationLat: 24.820822,
+                        destinationLng: 46.720885,
+                        passengers: passengers,
+                        fare: 15.00
                     })
                 });
 
-                const data = await response.json();
-
                 if (response.ok) {
-                    currentRideId = data.ride.id;
+                    const data = await response.json();
+                    currentRide = data.ride;
                     
-                    // Show status
-                    rideStatus.style.display = 'block';
-                    requestBtn.disabled = true;
-                    cancelBtn.style.display = 'block';
-                    rideActive = true;
-                    statusBadge.className = 'status-badge searching';
-                    statusBadge.textContent = 'Finding Driver...';
+                    document.getElementById('activeRideSection').style.display = 'block';
+                    document.getElementById('activePickup').textContent = pickup;
+                    document.getElementById('activeDestination').textContent = destination;
                     
-                    addChatMessage('Searching for nearby drivers...', 'received', 'System');
+                    document.getElementById('pickupLocation').value = '';
+                    document.getElementById('destination').value = '';
+                    
+                    // Enable chat
+                    document.getElementById('chatInput').disabled = false;
+                    document.querySelector('.send-btn').disabled = false;
+                    
+                    addChatMessage('Your ride request has been submitted!', 'sent', 'System');
                 } else {
-                    alert('Failed to create ride: ' + (data.error || 'Unknown error'));
+                    alert('Failed to request ride');
                 }
             } catch (error) {
-                console.error('Error creating ride:', error);
-                alert('Network error. Please try again.');
+                console.error('Error:', error);
+                alert('Network error');
             }
-        });
-
-        // Listen for ride accepted event
-        socket.on('rideAccepted', (data) => {
-            if (data.ride && data.ride.id === currentRideId) {
-                statusBadge.className = 'status-badge matched';
-                statusBadge.textContent = 'Driver Found!';
-                statusTitle.textContent = 'Your driver is on the way';
-                driverInfo.style.display = 'block';
-                
-                // Add driver marker
-                if (studentMarker) {
-                    const studentPos = studentMarker.getLatLng();
-                    addDriverMarker(studentPos.lat + 0.01, studentPos.lng + 0.01);
-                    
-                    // Draw route
-                    if (routeLine) map.removeLayer(routeLine);
-                    routeLine = L.polyline([
-                        [studentPos.lat, studentPos.lng],
-                        [studentPos.lat + 0.01, studentPos.lng + 0.01]
-                    ], { color: '#3b82f6', weight: 4 }).addTo(map);
-                }
-                
-                // Enable chat
-                document.getElementById('chatInput').disabled = false;
-                document.getElementById('sendBtn').disabled = false;
-                
-                addChatMessage('Driver has accepted your ride!', 'received', 'System');
-            }
-        });
-
-        cancelBtn.addEventListener('click', function() {
-            socket.emit('cancelRide', { rideId: currentRideId, studentId: userData.id });
-            resetRide();
-        });
-
-        function resetRide() {
-            rideStatus.style.display = 'none';
-            requestBtn.disabled = false;
-            cancelBtn.style.display = 'none';
-            driverInfo.style.display = 'none';
-            rideActive = false;
-            
-            if (driverMarker) map.removeLayer(driverMarker);
-            if (routeLine) map.removeLayer(routeLine);
-            
-            document.getElementById('chatInput').disabled = true;
-            document.getElementById('sendBtn').disabled = true;
         }
 
-        // Chat functionality
-        const chatMessages = document.getElementById('chatMessages');
-        const chatInput = document.getElementById('chatInput');
-
+        // Chat Functions
         function addChatMessage(message, type, sender = 'You') {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${type}`;
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = `message ${type}`;
             
             const bubble = document.createElement('div');
             bubble.className = 'message-bubble';
@@ -749,79 +1076,102 @@
             
             const time = document.createElement('div');
             time.className = 'message-time';
-            const now = new Date();
-            time.textContent = `${sender} • ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+            time.textContent = `${sender} • ${new Date().toLocaleTimeString()}`;
             
-            messageDiv.appendChild(bubble);
-            messageDiv.appendChild(time);
-            chatMessages.appendChild(messageDiv);
-            
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            div.appendChild(bubble);
+            div.appendChild(time);
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
         }
 
         function sendMessage() {
-            const message = chatInput.value.trim();
-            if (message && currentRideId) {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            
+            if (message && currentRide) {
                 addChatMessage(message, 'sent');
                 socket.emit('chatMessage', {
-                    rideId: currentRideId,
+                    rideId: currentRide.id,
                     senderId: userData.id,
-                    message: message,
-                    timestamp: new Date()
+                    message: message
                 });
-                chatInput.value = '';
+                input.value = '';
             }
         }
 
-        chatInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
+        // Driver Application
+        async function submitDriverApplication(e) {
+            e.preventDefault();
+            
+            const licenseNumber = document.getElementById('licenseNumber').value;
+            const vehicleMake = document.getElementById('vehicleMake').value;
+            const vehicleModel = document.getElementById('vehicleModel').value;
+            const vehicleYear = document.getElementById('vehicleYear').value;
+            const vehicleColor = document.getElementById('vehicleColor').value;
+            const plateNumber = document.getElementById('plateNumber').value;
 
-        // Socket.io events
-        socket.on('driverMatched', (data) => {
-            console.log('Driver matched:', data);
-            document.getElementById('driverName').textContent = data.driverName;
-            document.getElementById('driverDetails').textContent = `⭐ ${data.rating} • ${data.major}, ${data.year}`;
-            document.getElementById('vehicleInfo').textContent = `🚗 ${data.vehicle}`;
-        });
+            try {
+                const response = await fetch('/api/driver-application', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${sessionStorage.getItem('authToken')}`
+                    },
+                    body: JSON.stringify({
+                        userId: userData.id,
+                        licenseNumber,
+                        vehicleMake,
+                        vehicleModel,
+                        vehicleYear: parseInt(vehicleYear),
+                        vehicleColor,
+                        plateNumber
+                    })
+                });
 
-        socket.on('driverLocationUpdate', (data) => {
-            if (driverMarker) {
-                addDriverMarker(data.lat, data.lng);
-                
-                // Update route
-                if (studentMarker && routeLine) {
-                    map.removeLayer(routeLine);
-                    routeLine = L.polyline([
-                        studentMarker.getLatLng(),
-                        [data.lat, data.lng]
-                    ], { color: '#3b82f6', weight: 4 }).addTo(map);
+                if (response.ok) {
+                    alert('✅ Driver application submitted! Admin will review it soon.');
+                    e.target.reset();
+                } else {
+                    alert('Failed to submit application');
                 }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Network error');
             }
-        });
+        }
 
-        socket.on('chatMessage', (data) => {
-            addChatMessage(data.message, 'received', 'Driver');
-        });
+        // Profile
+        function saveProfile() {
+            const username = document.getElementById('profileUsername').value;
+            const phone = document.getElementById('profilePhone').value;
+            const major = document.getElementById('profileMajor').value;
 
-        socket.on('driverTyping', () => {
-            document.getElementById('typingIndicator').classList.add('active');
-            setTimeout(() => {
-                document.getElementById('typingIndicator').classList.remove('active');
-            }, 3000);
-        });
+            if (!username || !phone) {
+                alert('Please fill in all fields');
+                return;
+            }
 
-        socket.on('rideCompleted', () => {
-            addChatMessage('Ride completed! Thank you for using Amam.', 'received', 'System');
-            setTimeout(resetRide, 5000);
-        });
+            alert('✅ Profile updated successfully!');
+            userData.username = username;
+            userData.phone = phone;
+            userData.major = major;
+            sessionStorage.setItem('userData', JSON.stringify(userData));
+        }
 
         function logout() {
             sessionStorage.clear();
             window.location.href = 'login.html';
         }
+
+        // Socket Events
+        socket.on('chatMessage', (data) => {
+            addChatMessage(data.message, 'received', 'Driver');
+        });
+
+        socket.on('rideAccepted', (data) => {
+            document.getElementById('driverName').textContent = data.driverName;
+            addChatMessage('Driver accepted your ride!', 'received', 'System');
+        });
     </script>
 </body>
 </html>

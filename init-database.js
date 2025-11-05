@@ -3,9 +3,11 @@ const fs = require('fs');
 const path = require('path');
 
 // Database connection
+require('dotenv').config();
+
 const pool = new Pool({
-    connectionString: 'postgres://postgres:6TMsar5dPNeJqueb9Bsshekpxb7SyuEdoVYy6MyxW76WFZnSvBXDjk0pEyX4AGDq@45.13.225.39:2456/postgres',
-    ssl: false
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }  // Required for Supabase
 });
 
 async function initializeDatabase() {
@@ -20,13 +22,13 @@ async function initializeDatabase() {
         await pool.query(sql);
 
         console.log('✅ Database schema created successfully!');
-        console.log('✅ Sample data inserted!');
-        console.log('\n📊 Database is ready!\n');
-        console.log('Default accounts created:');
-        console.log('  Admin: admin@university.edu / admin123');
-        console.log('  Student: sarah.j@university.edu / admin123');
-        console.log('  Driver: mike.d@university.edu / admin123');
-        console.log('  Pending Driver: john.p@university.edu / admin123');
+        console.log('✅ All tables created with UUID schema!');
+        console.log('\n📊 Database is ready for use!\n');
+        console.log('Next steps:');
+        console.log('  1. Start server: npm start');
+        console.log('  2. Go to http://localhost:3000/signup.html');
+        console.log('  3. Register with your email (@sm.imamu.edu.sa)');
+        console.log('  4. Verify email and login\n');
 
         // Verify tables
         const result = await pool.query(`

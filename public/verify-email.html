@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Email - Amam</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .verification-container {
+            background: white;
+            border-radius: 20px;
+            padding: 3rem;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            color: #1e40af;
+            margin-bottom: 1rem;
+            font-size: 2rem;
+        }
+
+        .status-message {
+            margin: 2rem 0;
+            padding: 1rem;
+            border-radius: 10px;
+            font-size: 1rem;
+        }
+
+        .success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .loading {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #1e40af;
+            border-top: 3px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .button-group {
+            margin-top: 2rem;
+            display: flex;
+            gap: 1rem;
+        }
+
+        button, a {
+            flex: 1;
+            padding: 1rem;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #2563eb;
+            border: 2px solid #2563eb;
+        }
+
+        .btn-secondary:hover {
+            background: #2563eb;
+            color: white;
+        }
+
+        .countdown {
+            font-size: 0.9rem;
+            color: #64748b;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="verification-container">
+        <div class="logo">✉️</div>
+        <h1>Email Verification</h1>
+        <div id="statusMessage" class="status-message loading">
+            <span class="spinner"></span>
+            Verifying your email...
+        </div>
+
+        <div id="successContent" style="display: none;">
+            <p>🎉 Your email has been verified successfully!</p>
+            <p style="margin-top: 1rem; color: #64748b;">You can now log in and start using Amam.</p>
+            <div class="button-group">
+                <a href="login.html" class="btn-primary">Go to Login</a>
+            </div>
+        </div>
+
+        <div id="errorContent" style="display: none;">
+            <p>❌ Verification failed</p>
+            <p style="margin-top: 1rem; color: #64748b;" id="errorMessage"></p>
+            <div class="button-group">
+                <a href="signup.html" class="btn-secondary">Back to Signup</a>
+                <a href="login.html" class="btn-primary">Go to Login</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // When user clicks the link in Supabase email, they're redirected here
+        // Supabase automatically verifies the email before redirecting
+        // So we just need to show success
+
+        async function checkVerificationStatus() {
+            try {
+                // Get email from URL or sessionStorage
+                const urlParams = new URLSearchParams(window.location.search);
+                const email = urlParams.get('email') || sessionStorage.getItem('email');
+                
+                if (!email) {
+                    // No email provided, show generic success
+                    showSuccess('Your email has been verified!');
+                    return;
+                }
+
+                // Check if email is verified in Supabase
+                const response = await fetch('/api/check-email-verified', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.emailVerified) {
+                    showSuccess('Your email has been verified successfully!');
+                } else {
+                    showError('Email verification is pending. Please check your email.');
+                }
+            } catch (error) {
+                console.error('Verification check error:', error);
+                showSuccess('Your email verification is being processed. You can now log in.');
+            }
+        }
+
+        function showSuccess(message) {
+            document.getElementById('statusMessage').style.display = 'none';
+            document.getElementById('successContent').style.display = 'block';
+            // Update message if provided
+            const p = document.querySelector('#successContent p');
+            if (p) {
+                p.textContent = message;
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('statusMessage').style.display = 'none';
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorContent').style.display = 'block';
+        }
+
+        // Check verification on page load
+        window.onload = checkVerificationStatus;
+    </script>
+</body>
+</html>

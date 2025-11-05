@@ -252,6 +252,7 @@
                     required
                 >
             </div>
+        
 
             <!-- Driver-specific fields -->
             <!-- <div id="driverFields" style="display: none;">
@@ -294,6 +295,9 @@
                 Create Account
             </button>
         </form>
+
+
+
 
         <div class="login-text">
             Already have an account? <a href="login.html">Login here</a>
@@ -347,9 +351,9 @@
                 username: document.getElementById('username').value,
                 email: email,
                 password: password,
-                studentId: document.getElementById('studentId').value,
-                university: document.getElementById('university').value,
-                major: document.getElementById('major').value,
+                studentId: email.split("@")[0], // Auto-generate student ID
+                university: 'Imam Mohammed Ibn Saud Islamic University',
+                major: 'Not Specified',
                 phone: document.getElementById('fullName').value // Using fullName field as phone for now
             };
 
@@ -365,12 +369,27 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    alert('Registration successful! Admin will verify your student credentials within 24-48 hours. You will be notified once approved.');
-                    
-                    // Redirect to login
-                    setTimeout(() => {
+                    // Send verification email via Supabase Auth
+                    const emailResponse = await fetch('/api/send-verification-email', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ 
+                            email: email,
+                            password: password 
+                        })
+                    });
+
+                    const emailData = await emailResponse.json();
+
+                    if (emailResponse.ok) {
+                        alert('🎉 Account created! Please check your email to verify your account.');
                         window.location.href = 'login.html';
-                    }, 2000);
+                    } else {
+                        alert('✅ Account created! Check your email for verification link (check spam folder too).');
+                        window.location.href = 'login.html';
+                    }
                 } else {
                     alert(data.error || 'Registration failed. Please try again.');
                 }

@@ -9,6 +9,7 @@ const path = require('path');
 const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,10 +18,16 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'amam_secret_key';
 
+// Initialize Supabase Auth client
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
 // PostgreSQL connection
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: false
+    ssl: { rejectUnauthorized: false }  // Required for Supabase
 });
 
 // Test database connection
@@ -52,15 +59,41 @@ app.post('/api/register', async (req, res) => {
             return res.status(400).json({ error: 'Must use university email (sm.imamu.edu.sa)' });
         }
         
-        const passwordHash = await bcrypt.hash(password, 10);
-        
+        // Step 1: Create user in Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+            email: email,
+            password: password,
+            email_confirm: false  // User must verify email
+        });
+
+        if (authError) {
+            return res.status(400).json({ error: authError.message });
+        }
+
+        const authUserId = authData.user.id;
+
+        // Step 2: Create user in PostgreSQL users table with Supabase Auth ID
         const result = await pool.query(
-            `INSERT INTO users (username, email, password_hash, student_id, university, major, phone)
-             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, username, email, student_id`,
-            [username, email, passwordHash, studentId, university, major, phone]
+            `INSERT INTO users (id, username, email, student_id, university, major, phone, account_type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'student') RETURNING id, username, email, student_id, account_type`,
+            [authUserId, username, email, studentId, university, major, phone]
         );
         
         const user = result.rows[0];
+        
+        // Step 3: Send verification email
+        const { error: emailError } = await supabase.auth.resend({
+            type: 'signup',
+            email: email
+        });
+
+        if (emailError) {
+            console.warn('Warning: Could not send verification email:', emailError.message);
+            // Don't fail registration if email sending fails
+        } else {
+            console.log('✅ Verification email sent to:', email);
+        }
+        
         const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
         
         res.json({
@@ -70,16 +103,90 @@ app.post('/api/register', async (req, res) => {
                 id: user.id,
                 username: user.username,
                 email: user.email,
-                studentId: user.student_id
-            }
+                studentId: user.student_id,
+                accountType: user.account_type
+            },
+            message: 'Verification email sent to ' + email
         });
     } catch (error) {
         console.error('Registration error:', error);
         if (error.code === '23505') {
             res.status(400).json({ error: 'Username, email, or student ID already exists' });
         } else {
-            res.status(500).json({ error: 'Registration failed' });
+            res.status(500).json({ error: 'Registration failed: ' + error.message });
         }
+    }
+});
+
+// Resend verification email via Supabase Auth
+app.post('/api/send-verification-email', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password required' });
+        }
+
+        // Verify user credentials first
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+
+        if (signInError || !signInData.user) {
+            return res.status(400).json({ error: 'Invalid credentials' });
+        }
+
+        // Resend verification email
+        const { error: resendError } = await supabase.auth.resend({
+            type: 'signup',
+            email: email
+        });
+
+        if (resendError) {
+            return res.status(400).json({ error: resendError.message });
+        }
+
+        res.json({ 
+            success: true, 
+            message: 'Verification email sent to ' + email,
+            userId: signInData.user.id 
+        });
+    } catch (error) {
+        console.error('Email send error:', error);
+        res.status(500).json({ error: 'Failed to send verification email' });
+    }
+});
+
+// Check if email is verified via Supabase Auth
+app.post('/api/check-email-verified', async (req, res) => {
+    try {
+        const { email } = req.body;
+        
+        if (!email) {
+            return res.status(400).json({ error: 'Email required' });
+        }
+
+        // Get user from Supabase Auth
+        const { data, error } = await supabase.auth.admin.listUsers();
+
+        if (error) {
+            return res.status(400).json({ error: error.message });
+        }
+
+        const user = data.users.find(u => u.email === email);
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        res.json({ 
+            emailVerified: user.email_confirmed_at !== null,
+            userId: user.id 
+        });
+    } catch (error) {
+        console.error('Check email error:', error);
+        res.status(500).json({ error: 'Failed to check email verification' });
     }
 });
 
@@ -87,6 +194,25 @@ app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         
+        // Step 1: Verify credentials with Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+        
+        if (authError || !authData.user) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        // Step 2: Check if email is verified
+        if (!authData.user.email_confirmed_at) {
+            return res.status(403).json({ 
+                error: 'Please verify your email first', 
+                needsVerification: true 
+            });
+        }
+
+        // Step 3: Get user profile from PostgreSQL
         const result = await pool.query(
             `SELECT u.*, 
                     da.id as driver_app_id,
@@ -98,27 +224,18 @@ app.post('/api/login', async (req, res) => {
                     da.total_earnings
              FROM users u
              LEFT JOIN driver_applications da ON u.id = da.user_id
-             WHERE u.email = $1`,
-            [email]
+             WHERE u.id = $1`,
+            [authData.user.id]
         );
         
         if (result.rows.length === 0) {
-            return res.status(401).json({ error: 'Invalid credentials' });
+            return res.status(401).json({ error: 'User profile not found' });
         }
         
         const user = result.rows[0];
         
-        const validPassword = await bcrypt.compare(password, user.password_hash);
-        if (!validPassword) {
-            return res.status(401).json({ error: 'Invalid credentials' });
-        }
-        
-        if (!user.is_verified && !user.is_admin) {
-            return res.status(403).json({ error: 'Account not verified by admin yet' });
-        }
-        
         const token = jwt.sign(
-            { userId: user.id, email: user.email, isAdmin: user.is_admin },
+            { userId: user.id, email: user.email, accountType: user.account_type },
             JWT_SECRET,
             { expiresIn: '7d' }
         );
@@ -133,7 +250,7 @@ app.post('/api/login', async (req, res) => {
                 studentId: user.student_id,
                 university: user.university,
                 major: user.major,
-                isAdmin: user.is_admin,
+                accountType: user.account_type,
                 isVerified: user.is_verified,
                 hasDriverApp: !!user.driver_app_id,
                 driverStatus: user.driver_status,
@@ -147,6 +264,7 @@ app.post('/api/login', async (req, res) => {
         });
     } catch (error) {
         console.error('Login error:', error);
+
         res.status(500).json({ error: 'Login failed' });
     }
 });
@@ -217,7 +335,7 @@ app.get('/api/admin/pending-students', async (req, res) => {
         const result = await pool.query(
             `SELECT id, username, email, student_id, university, major, created_at
              FROM users
-             WHERE is_verified = FALSE AND is_admin = FALSE
+             WHERE is_verified = FALSE AND account_type != 'admin'
              ORDER BY created_at DESC`
         );
         
@@ -286,8 +404,8 @@ app.get('/api/admin/stats', async (req, res) => {
     try {
         const stats = await pool.query(`
             SELECT 
-                (SELECT COUNT(*) FROM users WHERE is_verified = FALSE AND is_admin = FALSE) as pending_students,
-                (SELECT COUNT(*) FROM users WHERE is_verified = TRUE AND is_admin = FALSE) as approved_students,
+                (SELECT COUNT(*) FROM users WHERE is_verified = FALSE AND account_type != 'admin') as pending_students,
+                (SELECT COUNT(*) FROM users WHERE is_verified = TRUE AND account_type != 'admin') as approved_students,
                 (SELECT COUNT(*) FROM driver_applications WHERE status = 'pending') as pending_drivers,
                 (SELECT COUNT(*) FROM driver_applications WHERE status = 'approved') as approved_drivers,
                 (SELECT COUNT(*) FROM rides) as total_rides,

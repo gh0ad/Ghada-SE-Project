@@ -326,6 +326,114 @@
             75% { transform: translateX(10px); }
         }
 
+        /* Verification Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 20px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .modal-title {
+            color: #1e40af;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .modal-text {
+            color: #64748b;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 0.875rem;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .modal-btn-primary {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            color: white;
+        }
+
+        .modal-btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3);
+        }
+
+        .modal-btn-secondary {
+            background: white;
+            color: #2563eb;
+            border: 2px solid #2563eb;
+        }
+
+        .modal-btn-secondary:hover {
+            background: #2563eb;
+            color: white;
+        }
+
+        /* Success Modal */
+        .modal-success .modal-icon {
+            color: #10b981;
+        }
+
+        .modal-success .modal-title {
+            color: #10b981;
+        }
+
+        /* Error Modal */
+        .modal-error .modal-icon {
+            color: #ef4444;
+        }
+
+        .modal-error .modal-title {
+            color: #ef4444;
+        }
+
+        /* Info Modal */
+        .modal-info .modal-icon {
+            color: #3b82f6;
+        }
+
+        .modal-info .modal-title {
+            color: #3b82f6;
+        }
+
         @media (max-width: 480px) {
             .login-container {
                 padding: 2rem 1.5rem;
@@ -353,34 +461,7 @@
             Invalid email or password. Please try again.
         </div>
 
-        <!-- <form id="loginForm">
-            <div class="form-group">
-                <label for="role">Login As</label>
-                <div class="input-wrapper">
-                    <span class="input-icon">𐀪𐀪</span>
-                    <select id="role" class="form-input" required>
-                        <option value=""></option>
-                        <option value="student">Student</option>
-                        <option value="driver">Faculty Member</option>
-                        <option value="admin">Admin</option>
-                    </select>
-                </div>
-            </div> -->
-
-            <!-- <div class="form-group">
-                <label for="username">Username</label>
-                <div class="input-wrapper">
-                    <span class="input-icon">𖨆</span>
-                    <input 
-                        type="text" 
-                        id="username" 
-                        class="form-input" 
-                        placeholder=""
-                        required
-                    >
-                </div>
-            </div> -->
-
+        <form id="loginForm">
             <div class="form-group">
                 <label for="email">Email</label>
                 <div class="input-wrapper">
@@ -436,7 +517,58 @@
         </div>
     </div>
 
+    <!-- Email Verification Modal -->
+    <div id="verificationModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-icon">📧</div>
+            <h2 class="modal-title">Email Verification Required</h2>
+            <p class="modal-text">
+                Please verify your email address to activate your account. 
+                Check your email for the verification link.
+            </p>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-secondary" onclick="closeModal('verificationModal')">Back to Login</button>
+                <button class="modal-btn modal-btn-primary" onclick="resendVerificationEmail()">Resend Email</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Message Modal -->
+    <div id="messageModal" class="modal">
+        <div class="modal-content" id="messageModalContent">
+            <div class="modal-icon" id="messageIcon">ℹ️</div>
+            <h2 class="modal-title" id="messageTitle">Message</h2>
+            <p class="modal-text" id="messageText">Message content goes here</p>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-primary" onclick="closeModal('messageModal')">OK</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // Helper function to show message modals
+        function showModal(title, message, type = 'info', icon = 'ℹ️', isVerificationNeeded = false) {
+            const modal = document.getElementById('messageModal');
+            const content = document.getElementById('messageModalContent');
+            
+            // Remove previous type classes
+            content.className = 'modal-content';
+            if (type !== 'info') {
+                content.classList.add(`modal-${type}`);
+            }
+            
+            document.getElementById('messageTitle').textContent = title;
+            document.getElementById('messageText').textContent = message;
+            document.getElementById('messageIcon').textContent = icon;
+            
+            modal.classList.add('show');
+        }
+
+        function closeModal(modalId = 'messageModal') {
+            const modal = document.getElementById(modalId);
+            modal.classList.remove('show');
+        }
+
         // Password toggle functionality
         const togglePassword = document.getElementById('togglePassword');
         const passwordInput = document.getElementById('password');
@@ -459,11 +591,12 @@
 
             // Validate email format
             if (!email.endsWith('sm.imamu.edu.sa')) {
-                errorMessage.textContent = 'Please use your university email address (sm.imamu.edu.sa)';
-                errorMessage.classList.add('show');
-                setTimeout(() => {
-                    errorMessage.classList.remove('show');
-                }, 3000);
+                showModal(
+                    '❌ Invalid Email',
+                    'Please use your university email address (sm.imamu.edu.sa)',
+                    'error',
+                    '❌'
+                );
                 return;
             }
 
@@ -482,35 +615,106 @@
                     // Store token and user data
                     sessionStorage.setItem('authToken', data.token);
                     sessionStorage.setItem('userData', JSON.stringify(data.user));
+                    sessionStorage.setItem('email', email);
+                    sessionStorage.setItem('username', data.user.username);
                     
-                    // Redirect based on role
-                    if (data.user.isAdmin) {
-                        window.location.href = 'admin-dashboard.html';
-                    } else if (!data.user.isVerified) {
-                        errorMessage.textContent = 'Account not verified by admin yet';
-                        errorMessage.classList.add('show');
-                    } else {
-                        window.location.href = 'role-selection.html';
-                    }
-                } else {
-                    errorMessage.textContent = data.error || 'Login failed';
-                    errorMessage.classList.add('show');
+                    // Show success message
+                    showModal(
+                        '✅ Login Successful',
+                        `Welcome back, ${data.user.username}! Redirecting...`,
+                        'success',
+                        '✅'
+                    );
+                    
+                    // Redirect after 1.5 seconds
                     setTimeout(() => {
-                        errorMessage.classList.remove('show');
-                    }, 3000);
+                        if (data.user.accountType === 'admin') {
+                            window.location.href = 'admin-dashboard.html';
+                        } else if (data.user.accountType === 'faculty' || data.user.accountType === 'driver') {
+                            window.location.href = 'driver-dashboard.html';
+                        } else {
+                            window.location.href = 'student-dashboard.html';
+                        }
+                    }, 1500);
+                } else {
+                    // Check if email verification is needed
+                    if (data.needsVerification) {
+                        window.pendingEmail = email;
+                        document.getElementById('verificationModal').classList.add('show');
+                    } else {
+                        showModal(
+                            '❌ Login Failed',
+                            data.error || 'Invalid email or password. Please try again.',
+                            'error',
+                            '❌'
+                        );
+                    }
                 }
             } catch (error) {
                 console.error('Login error:', error);
-                errorMessage.textContent = 'Network error. Please try again.';
-                errorMessage.classList.add('show');
-                setTimeout(() => {
-                    errorMessage.classList.remove('show');
-                }, 3000);
+                showModal(
+                    '❌ Network Error',
+                    'Unable to connect to the server. Please try again.',
+                    'error',
+                    '❌'
+                );
             }
         });
 
-        // Social login buttons
-        // Removed - student verification only
+        async function resendVerificationEmail() {
+            try {
+                const email = window.pendingEmail || document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                
+                // For resend, we need the password to re-trigger Supabase verification
+                if (!password) {
+                    showModal(
+                        '⚠️ Password Required',
+                        'Please enter your password to resend the verification email.',
+                        'info',
+                        '⚠️'
+                    );
+                    return;
+                }
+                
+                const response = await fetch('/api/send-verification-email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    showModal(
+                        '✅ Email Sent',
+                        'Verification email sent! Check your inbox and spam folder.',
+                        'success',
+                        '✅'
+                    );
+                    setTimeout(() => {
+                        closeModal('messageModal');
+                        closeModal('verificationModal');
+                    }, 2000);
+                } else {
+                    showModal(
+                        '❌ Failed to Send',
+                        data.error || 'Failed to resend verification email. Please try again.',
+                        'error',
+                        '❌'
+                    );
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showModal(
+                    '❌ Network Error',
+                    'Network error. Please check your connection and try again.',
+                    'error',
+                    '❌'
+                );
+            }
+        }
 
         // Input focus effects
         const inputs = document.querySelectorAll('.form-input');
@@ -520,6 +724,15 @@
             });
             input.addEventListener('blur', function() {
                 this.parentElement.style.transform = 'scale(1)';
+            });
+        });
+
+        // Close modal when clicking outside
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('show');
+                }
             });
         });
     </script>

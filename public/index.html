@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -99,8 +100,15 @@
         }
 
         @keyframes float {
-            0%, 100% { transform: translateY(0) rotate(0deg); }
-            50% { transform: translateY(-30px) rotate(5deg); }
+
+            0%,
+            100% {
+                transform: translateY(0) rotate(0deg);
+            }
+
+            50% {
+                transform: translateY(-30px) rotate(5deg);
+            }
         }
 
         .hero-content {
@@ -190,8 +198,15 @@
         }
 
         @keyframes phoneFloat {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-20px); }
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-20px);
+            }
         }
 
         .phone-screen {
@@ -449,6 +464,7 @@
         }
     </style>
 </head>
+
 <body>
     <!-- Navigation -->
     <nav>
@@ -458,20 +474,21 @@
             <li><a href="#features">Features</a></li>
             <li><a href="#how-it-works">How It Works</a></li>
             <li><a href="#about">About</a></li>
-                                    <li><a href="signup.html">signup</a></li>
+            <!-- <li><a href="signup.html">signup</a></li>
 
-            <li><a href="login.html">Login</a></li>
+            <li><a href="login.html">Login</a></li> -->
 
         </ul>
         <a href="signup.html" class="cta-button">Signup</a>
-        <a href="login.html" class="cta-button">Login</a>
+        <!-- <a href="login.html" class="cta-button">Login</a> -->
     </nav>
 
     <!-- Hero Section -->
     <section class="hero" id="home">
         <div class="hero-content">
-            <h1>Safe Rides, <span>By Students</span></h1>
-            <p>Amam connects Imamu university members for safe, affordable rides to campus and metro stations. Verified student drivers, trusted by your campus community.</p>
+            <h1>Safe Rides, <span><br>By Students</span></h1>
+            <p>Amam connects Imamu university members for safe, affordable rides to campus and metro stations. Verified
+                student drivers, trusted by your campus community.</p>
             <div class="hero-buttons">
                 <a href="login.html" class="primary-btn">Get Started</a>
                 <a href="#how-it-works" class="secondary-btn">Learn More</a>
@@ -483,7 +500,8 @@
                     <div class="screen-content">
                         <div class="screen-icon">˞̶ō͡≡o</div>
                         <div>Amam</div>
-                        <div style="font-size: 1rem; font-weight: normal; margin-top: 1rem; color: #64748b;">إمامك أمامك</div>
+                        <div style="font-size: 1rem; font-weight: normal; margin-top: 1rem; color: #64748b;">إمامك أمامك
+                        </div>
                     </div>
                 </div>
             </div>
@@ -503,7 +521,8 @@
             <div class="feature-card">
                 <div class="feature-icon"></div>
                 <h3>Verified Drivers</h3>
-                <p>All drivers are verified students with valid university ID, driver's license, and background checks.</p>
+                <p>All drivers are verified students with valid university ID, driver's license, and background checks.
+                </p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon"></div>
@@ -513,12 +532,14 @@
             <div class="feature-card">
                 <div class="feature-icon"></div>
                 <h3>Instant Chat</h3>
-                <p>Communicate with your driver in real-time using our built-in messaging system powered by Socket.io.</p>
+                <p>Communicate with your driver in real-time using our built-in messaging system powered by Socket.io.
+                </p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon"></div>
                 <h3>Campus Routes</h3>
-                <p>Specialized routes to university buildings, dormitories, and nearby metro stations for student convenience.</p>
+                <p>Specialized routes to university buildings, dormitories, and nearby metro stations for student
+                    convenience.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon"></div>
@@ -536,7 +557,8 @@
             <div class="step">
                 <div class="step-number">1</div>
                 <h3>Verify Member Status</h3>
-                <p>Sign up with your university email and student ID if needed. Admin verifies your credentials for safety.</p>
+                <p>Sign up with your university email and student ID if needed. Admin verifies your credentials for
+                    safety.</p>
             </div>
             <div class="step">
                 <div class="step-number">2</div>
@@ -546,7 +568,8 @@
             <div class="step">
                 <div class="step-number">3</div>
                 <h3>Get Matched</h3>
-                <p>Our system finds the nearest verified student driver. Track them on the map and chat in real-time.</p>
+                <p>Our system finds the nearest verified student driver. Track them on the map and chat in real-time.
+                </p>
             </div>
             <div class="step">
                 <div class="step-number">4</div>
@@ -622,10 +645,18 @@
                     <li><a href="#">Cookie Policy</a></li>
                 </ul>
             </div>
+            <div class="footer-section" style="grid-column: -1;">
+                <h3>System</h3>
+                <ul>
+                    <li><a href="admin-login.html" style="color: #64748b; font-weight: 600;"> Admin Portal</a></li>
+                </ul>
+            </div>
         </div>
         <div class="footer-bottom">
             <p>&copy; 2025 Amam. All rights reserved. Making every journey count.</p>
+            <!-- <p style="font-size: 0.85rem; color: #94a3b8; margin-top: 1rem;">🔐 <strong>System Admin Access:</strong> <code style="background: #1e40af; color: #dbeafe; padding: 0.25rem 0.5rem; border-radius: 4px; font-family: monospace;">username: admin | password: Admin@123456</code></p> -->
         </div>
     </footer>
 </body>
+
 </html>
