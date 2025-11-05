@@ -655,7 +655,7 @@
         <div class="home-container">
             <!-- Request Panel -->
             <div class="request-panel">
-                <h2 class="panel-title">🎫 Request a Ride</h2>
+                <h2 class="panel-title">🎫 Book a Ride</h2>
 
                 <div class="ride-form">
                     <div class="form-group">
@@ -669,6 +669,20 @@
                     <div class="form-group">
                         <label for="passengers">Number of Passengers</label>
                         <input type="number" id="passengers" value="1" min="1" max="4" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="paymentMethod">Payment Method</label>
+                        <select id="paymentMethod">
+                            <option value="cash">Cash</option>
+                            <option value="wallet">In-app Wallet</option>
+                            <option value="pay_now">Pay Now (card)</option>
+                        </select>
+                        <div class="small-note" id="paymentNote">Choose how you'd like to pay.</div>
+                    </div>
+
+                    <div class="form-group" id="payNowContainer" style="display:none;">
+                        <button class="request-btn" id="payNowBtn" type="button">Pay Now • SAR <span id="payNowAmount">15.00</span></button>
+                        <div class="small-note" id="walletInfo" style="margin-top:0.5rem; display:none;">Wallet balance: <strong id="walletBalance">-</strong></div>
                     </div>
                     <button class="request-btn" onclick="requestRide()">Request Ride</button>
                 </div>
@@ -959,6 +973,12 @@
 
             // Authenticate socket
             socket.emit('authenticate', userData.id);
+            // Payment UI hooks
+            const pmEl = document.getElementById('paymentMethod');
+            const payBtn = document.getElementById('payNowBtn');
+            if (pmEl) pmEl.addEventListener('change', updatePaymentUI);
+            if (payBtn) payBtn.addEventListener('click', payNow);
+            updatePaymentUI();
         };
 
         // Initialize Map
@@ -1008,14 +1028,123 @@
             }
         }
 
-        // Request Ride
+        // Payment integration variables
+        let paymentConfirmed = false; // true after successful card payment
+        const fareEstimate = 15.00;
+
+        // Update payment UI state
+        function updatePaymentUI() {
+            const pm = document.getElementById('paymentMethod').value;
+            const payNowContainer = document.getElementById('payNowContainer');
+            const paymentNote = document.getElementById('paymentNote');
+
+            if (pm === 'pay_now') {
+                payNowContainer.style.display = 'block';
+                document.getElementById('payNowAmount').textContent = fareEstimate.toFixed(2);
+                paymentNote.textContent = 'You will be redirected to pay now. Payment must complete before booking.';
+            } else if (pm === 'wallet') {
+                payNowContainer.style.display = 'block';
+                document.getElementById('walletInfo').style.display = 'block';
+                document.getElementById('walletBalance').textContent = 'Loading...';
+                document.getElementById('payNowBtn').textContent = 'Use Wallet • SAR ' + fareEstimate.toFixed(2);
+                paymentNote.textContent = 'Your wallet will be charged if sufficient balance is available.';
+                fetchWalletBalance();
+            } else {
+                payNowContainer.style.display = 'none';
+                document.getElementById('walletInfo').style.display = 'none';
+                paymentNote.textContent = 'Choose how you\'d like to pay for this ride.';
+            }
+        }
+
+        async function fetchWalletBalance() {
+            try {
+                const res = await fetch('/api/wallet/balance', {
+                    headers: { 'Authorization': `Bearer ${sessionStorage.getItem('authToken')}` }
+                });
+                if (res.ok) {
+                    const d = await res.json();
+                    document.getElementById('walletBalance').textContent = (d.balance || 0).toFixed(2) + ' SAR';
+                } else {
+                    document.getElementById('walletBalance').textContent = 'N/A';
+                }
+            } catch (err) {
+                console.error('Wallet balance error', err);
+                document.getElementById('walletBalance').textContent = 'N/A';
+            }
+        }
+
+        // Simulate or call payment API to pay now (card)
+        async function payNow() {
+            try {
+                document.getElementById('payNowBtn').disabled = true;
+                document.getElementById('payNowBtn').textContent = 'Processing...';
+
+                const res = await fetch('/api/pay', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${sessionStorage.getItem('authToken')}`
+                    },
+                    body: JSON.stringify({ amount: fareEstimate, method: 'card' })
+                });
+
+                if (res.ok) {
+                    const d = await res.json();
+                    paymentConfirmed = true;
+                    alert('Payment successful. You can now request the ride.');
+                    document.getElementById('payNowBtn').textContent = 'Paid ✓';
+                } else {
+                    const err = await res.json().catch(()=>({error:'Payment failed'}));
+                    alert(err.error || 'Payment failed');
+                    document.getElementById('payNowBtn').textContent = 'Pay Now • SAR ' + fareEstimate.toFixed(2);
+                }
+            } catch (err) {
+                console.error('Payment error', err);
+                alert('Payment network error. Try again.');
+                document.getElementById('payNowBtn').textContent = 'Pay Now • SAR ' + fareEstimate.toFixed(2);
+            } finally {
+                document.getElementById('payNowBtn').disabled = false;
+            }
+        }
+
+        // Request Ride (handles payment method)
         async function requestRide() {
             const pickup = document.getElementById('pickupLocation').value;
             const destination = document.getElementById('destination').value;
             const passengers = parseInt(document.getElementById('passengers').value);
+            const paymentMethod = document.getElementById('paymentMethod').value;
 
             if (!pickup || !destination) {
                 alert('Please fill in all fields');
+                return;
+            }
+
+            // handle wallet charge (synchronous before creating ride)
+            if (paymentMethod === 'wallet') {
+                try {
+                    const chargeRes = await fetch('/api/wallet/charge', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${sessionStorage.getItem('authToken')}`
+                        },
+                        body: JSON.stringify({ amount: fareEstimate })
+                    });
+                    if (!chargeRes.ok) {
+                        const e = await chargeRes.json().catch(()=>({ error: 'Wallet charge failed' }));
+                        alert(e.error || 'Insufficient wallet balance');
+                        return;
+                    }
+                } catch (err) {
+                    console.error('Wallet charge error', err);
+                    alert('Wallet charge failed. Try again.');
+                    return;
+                }
+            }
+
+            // require payNow first when pay_now selected
+            if (paymentMethod === 'pay_now' && !paymentConfirmed) {
+                alert('Please complete payment first by clicking Pay Now.');
                 return;
             }
 
@@ -1035,7 +1164,9 @@
                         destinationLat: 24.820822,
                         destinationLng: 46.720885,
                         passengers: passengers,
-                        fare: 15.00
+                        fare: fareEstimate,
+                        paymentMethod: paymentMethod,
+                        paid: paymentMethod === 'cash' ? false : true
                     })
                 });
 
@@ -1046,6 +1177,7 @@
                     document.getElementById('activeRideSection').style.display = 'block';
                     document.getElementById('activePickup').textContent = pickup;
                     document.getElementById('activeDestination').textContent = destination;
+                    document.getElementById('rideFare').textContent = fareEstimate.toFixed(2) + ' SAR';
                     
                     document.getElementById('pickupLocation').value = '';
                     document.getElementById('destination').value = '';
