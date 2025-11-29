@@ -633,7 +633,7 @@
     <!-- Header with Navigation -->
     <header class="header">
         <div class="header-left">
-            <div class="logo">ō͡≡o</div>
+            <div class="logo" id="appLogo" style="cursor:pointer">ō͡≡o</div>
             <div class="user-info">
                 <h2 id="welcomeUser">Welcome, User!</h2>
                 <p id="userEmail">user@sm.imamu.edu.sa</p>
@@ -1067,6 +1067,9 @@
             if (topupBtn) topupBtn.addEventListener('click', topUpWallet);
             // avatar controls
             setupAvatarControls();
+            // header logo click -> go to public homepage
+            const logoEl = document.getElementById('appLogo');
+            if (logoEl) logoEl.addEventListener('click', () => { window.location.href = '/index.html'; });
         };
 
         // Initialize Map
