@@ -110,6 +110,34 @@
             display: block;
         }
 
+        /* In-app notifications (top-right) */
+        .notifications {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            width: 320px;
+            max-width: calc(100% - 2rem);
+            z-index: 1200;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .notification {
+            background: white;
+            border-left: 4px solid #2563eb;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+            font-size: 0.95rem;
+            color: #0f172a;
+        }
+
+        .notification.info { border-left-color: #2563eb; }
+        .notification.success { border-left-color: #10b981; }
+        .notification.warn { border-left-color: #f59e0b; }
+        .notification .close-btn { float: right; background: none; border: none; font-weight: 700; cursor: pointer; }
+
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -630,6 +658,7 @@
     </style>
 </head>
 <body>
+    <div id="inAppNotifications" class="notifications" aria-live="polite"></div>
     <!-- Header with Navigation -->
     <header class="header">
         <div class="header-left">
@@ -978,6 +1007,36 @@
         // Initialize
         let userData = null;
         let socket = io();
+
+        // Listen for driver status updates (approved/rejected) from server
+        socket.on('driverStatusUpdated', (data) => {
+            try {
+                // data: { applicationId, status, approved, reason, userId }
+                if (!data) return;
+                // If userData is available, ensure event is for this user
+                if (userData && data.userId && String(data.userId) !== String(userData.id)) return;
+
+                if (!userData) userData = {};
+                userData.driverStatus = data.status || (data.approved ? 'approved' : 'rejected');
+                userData.isActiveDriver = !!data.approved;
+                sessionStorage.setItem('userData', JSON.stringify(userData));
+
+                const driverTabBtn = document.getElementById('driverTabBtn');
+                if (driverTabBtn) driverTabBtn.style.display = data.approved ? 'inline-block' : (userData.accountType === 'student' ? 'inline-block' : 'none');
+
+                if (data.approved) {
+                    showNotification('Your driver application was approved. You can now offer and accept rides.', 'success', 2000);
+                    // small delay to let notification show, then reload to enable driver UI fully
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1800);
+                } else {
+                    showNotification('Your driver application was rejected.' + (data.reason ? '\nReason: ' + data.reason : ''), 'warn', 6000);
+                }
+            } catch (e) {
+                console.warn('Error handling driverStatusUpdated:', e);
+            }
+        });
         let currentRide = null;
         let userLocation = null;
         let map, userMarker, driverMarker, routeLine;
@@ -1040,6 +1099,15 @@
                 } else {
                     profileAvatarContent.textContent = userData.avatar;
                 }
+            }
+
+            // Authenticate socket connection with server so server can map socketId -> userId
+            try {
+                if (socket && socket.emit && userData && userData.id) {
+                    socket.emit('authenticate', userData.id);
+                }
+            } catch (e) {
+                console.warn('Failed to authenticate socket:', e);
             }
 
             // Update driver form (pre-fill known info)
@@ -1624,10 +1692,10 @@
                 });
 
                 if (response.ok) {
-                    alert('✅ Driver application submitted! Admin will review it soon.');
+                    showNotification('Driver application submitted. Admin will review it soon.', 'info', 5000);
                     e.target.reset();
                 } else {
-                    alert('Failed to submit application');
+                    showNotification('Failed to submit application', 'warn', 5000);
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -1660,6 +1728,35 @@
         function logout() {
             sessionStorage.clear();
             window.location.href = 'login.html';
+        }
+
+        // In-app notification helper
+        function showNotification(message, type = 'info', autoDismiss = 4000) {
+            try {
+                const container = document.getElementById('inAppNotifications');
+                if (!container) return;
+
+                const el = document.createElement('div');
+                el.className = 'notification ' + (type || 'info');
+                const closeBtn = document.createElement('button');
+                closeBtn.className = 'close-btn';
+                closeBtn.innerText = '×';
+                closeBtn.onclick = () => { el.remove(); };
+                el.appendChild(closeBtn);
+
+                const text = document.createElement('div');
+                text.style.whiteSpace = 'pre-wrap';
+                text.textContent = message;
+                el.appendChild(text);
+
+                container.prepend(el);
+
+                if (autoDismiss && autoDismiss > 0) {
+                    setTimeout(() => { try { el.remove(); } catch (e) {} }, autoDismiss);
+                }
+            } catch (e) {
+                console.warn('showNotification error', e);
+            }
         }
 
         // Socket Events

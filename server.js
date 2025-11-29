@@ -393,6 +393,30 @@ app.post('/api/admin/review-driver', async (req, res) => {
             [status, adminId, reason, approved, applicationId]
         );
         
+        // Fetch the updated application to get the applicant user id
+        const appRes = await pool.query('SELECT * FROM driver_applications WHERE id = $1', [applicationId]);
+        const appRow = appRes.rows[0];
+
+        // Notify applicant via Socket.IO if they are connected
+        if (appRow && appRow.user_id) {
+            const userId = appRow.user_id;
+            const socketId = activeSockets.get(userId);
+            const payload = {
+                applicationId,
+                status,
+                approved: !!approved,
+                reason: reason || null,
+                userId
+            };
+            try {
+                if (socketId && io && io.to) {
+                    io.to(socketId).emit('driverStatusUpdated', payload);
+                }
+            } catch (e) {
+                console.warn('Failed to emit driverStatusUpdated:', e.message || e);
+            }
+        }
+
         res.json({ success: true, message: `Driver application ${status}` });
     } catch (error) {
         console.error('Review driver error:', error);

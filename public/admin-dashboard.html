@@ -695,14 +695,14 @@
     <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar-logo">
-            <div>⚙️</div>
+            <div></div>
             <span>Amam Admin</span>
         </div>
         <nav class="sidebar-nav">
-            <li><a class="active" onclick="switchNav('drivers')">🚗 Driver Verification</a></li>
-            <li><a onclick="switchNav('announcements')">📢 Announcements</a></li>
-            <li><a onclick="switchNav('support')">🛠️ Tech Support</a></li>
-            <li><a onclick="switchNav('admins')">👥 Manage Admins</a></li>
+            <li><a class="active" onclick="switchNav('drivers')">Driver Verification</a></li>
+            <li><a onclick="switchNav('announcements')">Announcements</a></li>
+            <li><a onclick="switchNav('support')">Tech Support</a></li>
+            <li><a onclick="switchNav('admins')">Manage Admins</a></li>
         </nav>
     </aside>
 
@@ -723,23 +723,23 @@
         <!-- Stats Grid -->
         <div class="stats-grid">
             <div class="stat-card warning">
-                <div class="stat-icon">⏳</div>
-                <div class="stat-value" id="pendingDrivers">8</div>
+                <div class="stat-icon"></div>
+                <div class="stat-value" id="pendingDrivers">0</div>
                 <div class="stat-label">Pending Driver Apps</div>
             </div>
             <div class="stat-card success">
-                <div class="stat-icon">✅</div>
-                <div class="stat-value" id="approvedDrivers">42</div>
+                <div class="stat-icon"></div>
+                <div class="stat-value" id="approvedDrivers">0</div>
                 <div class="stat-label">Approved Drivers</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">📢</div>
-                <div class="stat-value" id="announementCount">12</div>
+                <div class="stat-icon"></div>
+                <div class="stat-value" id="announementCount">0</div>
                 <div class="stat-label">Active Announcements</div>
             </div>
             <div class="stat-card success">
-                <div class="stat-icon">👥</div>
-                <div class="stat-value" id="adminCount">3</div>
+                <div class="stat-icon"></div>
+                <div class="stat-value" id="adminCount">0</div>
                 <div class="stat-label">Admin Accounts</div>
             </div>
         </div>
@@ -747,92 +747,32 @@
         <!-- Driver Verification Tab -->
         <div id="driversSection" class="tab-content active">
             <div class="tabs">
-                <button class="tab active" onclick="switchDriverTab('pending')">⏳ Pending (8)</button>
-                <button class="tab" onclick="switchDriverTab('approved')">✅ Approved (42)</button>
-                <button class="tab" onclick="switchDriverTab('rejected')">❌ Rejected (3)</button>
+                <button class="tab active" onclick="switchDriverTab('pending')">Pending (<span id="tabPendingCount">0</span>)</button>
+                <button class="tab" onclick="switchDriverTab('approved')">Approved (<span id="tabApprovedCount">0</span>)</button>
+                <button class="tab" onclick="switchDriverTab('rejected')">Rejected (<span id="tabRejectedCount">0</span>)</button>
             </div>
 
             <div id="pendingTab" class="tab-content active">
                 <div class="controls">
-                    <input type="text" class="search-input" placeholder="Search by name or email...">
+                    <input type="text" id="searchPending" class="search-input" placeholder="Search by name or email...">
                 </div>
-                <div class="verification-grid">
-                    <div class="verification-card">
-                        <div class="verification-header">
-                            <div class="user-details">
-                                <h3>Ahmed Hassan</h3>
-                                <div class="detail-row">
-                                    <span class="detail-label">Email:</span>
-                                    <span>ahmed.hassan@university.edu</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">License:</span>
-                                    <span>DL-789456123</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">Vehicle:</span>
-                                    <span>Honda Civic 2020 - ABC 456</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">Applied:</span>
-                                    <span>Nov 3, 2025</span>
-                                </div>
-                            </div>
-                            <div>
-                                <span class="status-badge pending">Pending</span>
-                            </div>
-                        </div>
-                        <div class="verification-actions">
-                            <button class="approve-btn" onclick="approveDriver(1)">✅ Approve Driver</button>
-                            <button class="reject-btn" onclick="rejectDriver(1)">❌ Reject</button>
-                        </div>
-                    </div>
-
-                    <div class="verification-card">
-                        <div class="verification-header">
-                            <div class="user-details">
-                                <h3>Fatima Al-Mazrouei</h3>
-                                <div class="detail-row">
-                                    <span class="detail-label">Email:</span>
-                                    <span>fatima.mazrouei@university.edu</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">License:</span>
-                                    <span>DL-456789012</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">Vehicle:</span>
-                                    <span>Nissan Altima 2021 - XYZ 789</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">Applied:</span>
-                                    <span>Nov 4, 2025</span>
-                                </div>
-                            </div>
-                            <div>
-                                <span class="status-badge pending">Pending</span>
-                            </div>
-                        </div>
-                        <div class="verification-actions">
-                            <button class="approve-btn" onclick="approveDriver(2)">✅ Approve Driver</button>
-                            <button class="reject-btn" onclick="rejectDriver(2)">❌ Reject</button>
-                        </div>
-                    </div>
+                <div class="verification-grid" id="pendingGrid">
+                    <!-- Pending driver applications will be rendered here -->
                 </div>
             </div>
 
             <div id="approvedTab" class="tab-content">
                 <div class="empty-state">
-                    <div class="empty-icon">✅</div>
-                    <h3>42 Approved Drivers</h3>
+                    <div class="empty-icon"></div>
+                    <h3><span id="approvedDriversHeader">0</span> Approved Drivers</h3>
                     <p>All drivers have been verified and are active on the platform</p>
                 </div>
             </div>
 
             <div id="rejectedTab" class="tab-content">
                 <div class="empty-state">
-                    <div class="empty-icon">❌</div>
-                    <h3>3 Rejected Applications</h3>
+                    <div class="empty-icon"></div>
+                    <h3><span id="rejectedDriversHeader">0</span> Rejected Applications</h3>
                     <p>Drivers were not approved due to missing documents or verification issues</p>
                 </div>
             </div>
@@ -868,7 +808,7 @@
                             <input type="datetime-local" id="eventDate">
                         </div>
 
-                        <button class="create-btn" onclick="createAnnouncement()">📤 Post Announcement</button>
+                        <button class="create-btn" onclick="createAnnouncement()">Post Announcement</button>
                     </div>
                 </div>
 
@@ -876,13 +816,13 @@
                     <h3 style="color: #1e40af; margin-bottom: 1.5rem;">Recent Announcements</h3>
                     <div class="announcements-list">
                         <div class="announcement-item">
-                            <div class="announcement-header">
-                                <div>
-                                    <h4>Platform Maintenance</h4>
-                                    <span class="announcement-type system">System</span>
+                                <div class="announcement-header">
+                                    <div>
+                                        <h4>Platform Maintenance</h4>
+                                        <span class="announcement-type system">System</span>
+                                    </div>
+                                    <span class="announcement-date">Nov 5, 2025</span>
                                 </div>
-                                <span class="announcement-date">Nov 5, 2025</span>
-                            </div>
                             <p class="announcement-text">Platform will be under maintenance from 2-4 AM. Services may be temporarily unavailable.</p>
                             <div class="announcement-actions">
                                 <button class="btn-edit">Edit</button>
@@ -1015,7 +955,7 @@
                             </select>
                         </div>
 
-                        <button class="create-btn" onclick="createAdmin()">👤 Create Admin Account</button>
+                        <button class="create-btn" onclick="createAdmin()">Create Admin Account</button>
                     </div>
                 </div>
 
@@ -1025,7 +965,7 @@
                         
                         <div class="admin-item">
                             <div class="admin-info">
-                                <h4>🔐 admin</h4>
+                                <h4>admin</h4>
                                 <p>Primary Administrator (System Generated)</p>
                             </div>
                             <span class="status-badge approved" style="display: inline-block;">Active</span>
@@ -1053,10 +993,10 @@
     </div>
 
     <!-- Success Modal -->
-    <div id="successModal" class="modal">
+        <div id="successModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 class="modal-title">✅ Success</h2>
+                <h2 class="modal-title">Success</h2>
                 <button class="close-btn" onclick="closeModal()">×</button>
             </div>
             <p id="successMessage" style="color: #475569; line-height: 1.6;"></p>
@@ -1075,6 +1015,21 @@
 
             const admin = JSON.parse(adminSession);
             document.getElementById('adminUsername').textContent = admin.username;
+
+            // Load pending driver applications for review
+            loadPendingApplications();
+
+            // Wire up search filter
+            const searchPending = document.getElementById('searchPending');
+            if (searchPending) {
+                let debounce;
+                searchPending.addEventListener('input', (e) => {
+                    clearTimeout(debounce);
+                    debounce = setTimeout(() => {
+                        filterPending(e.target.value.trim().toLowerCase());
+                    }, 250);
+                });
+            }
         });
 
         // Navigation
@@ -1110,7 +1065,7 @@
                 return;
             }
 
-            showSuccess('Announcement created successfully! ✅\n\nTitle: ' + title + '\nType: ' + type);
+            showSuccess('Announcement created successfully.\n\nTitle: ' + title + '\nType: ' + type);
             
             // Clear form
             document.getElementById('announcementTitle').value = '';
@@ -1126,17 +1081,198 @@
         }
 
         // Driver Verification
-        function approveDriver(id) {
-            if (confirm('Approve this driver application?')) {
-                showSuccess('Driver application #' + id + ' has been approved! ✅');
+        // Approve driver: calls backend and refreshes list on success
+        async function approveDriver(id) {
+            if (!confirm('Approve this driver application?')) return;
+            try {
+                const adminSession = sessionStorage.getItem('adminSession');
+                const admin = adminSession ? JSON.parse(adminSession) : {};
+                const adminId = admin.id || admin.userId || admin.adminId || null;
+
+                const res = await fetch('/api/admin/review-driver', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ applicationId: id, adminId, approved: true, reason: null })
+                });
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || 'Server error');
+                }
+                showSuccess('Driver application #' + id + ' has been approved!');
+                await loadPendingApplications();
+                await refreshStats();
+            } catch (err) {
+                alert('Failed to approve application: ' + (err.message || err));
             }
         }
 
-        function rejectDriver(id) {
+        // Reject driver: prompt for reason, send to backend, refresh on success
+        async function rejectDriver(id) {
             const reason = prompt('Enter rejection reason:');
-            if (reason) {
+            if (!reason) return;
+            try {
+                const adminSession = sessionStorage.getItem('adminSession');
+                const admin = adminSession ? JSON.parse(adminSession) : {};
+                const adminId = admin.id || admin.userId || admin.adminId || null;
+
+                const res = await fetch('/api/admin/review-driver', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ applicationId: id, adminId, approved: false, reason })
+                });
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || 'Server error');
+                }
                 showSuccess('Driver application #' + id + ' has been rejected.\n\nReason: ' + reason);
+                await loadPendingApplications();
+                await refreshStats();
+            } catch (err) {
+                alert('Failed to reject application: ' + (err.message || err));
             }
+        }
+
+        // Fetch pending driver applications and render them
+        async function loadPendingApplications() {
+            const container = document.getElementById('pendingGrid');
+            container.innerHTML = '<div class="empty-state">Loading pending applications...</div>';
+            try {
+                const res = await fetch('/api/admin/pending-drivers');
+                if (!res.ok) throw new Error('Failed to fetch pending drivers');
+                const data = await res.json();
+                const apps = Array.isArray(data.applications) ? data.applications : [];
+
+                // update stats
+                const pendingCount = apps.length;
+                const pendingEl = document.getElementById('pendingDrivers');
+                if (pendingEl) pendingEl.textContent = pendingCount;
+                const tabPending = document.getElementById('tabPendingCount');
+                if (tabPending) tabPending.textContent = pendingCount;
+
+                if (apps.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><div class="empty-icon"></div><h3>No pending applications</h3><p>All caught up — no pending driver applications.</p></div>';
+                    // still refresh the overall stats
+                    await refreshStats();
+                    return;
+                }
+
+                container.innerHTML = '';
+                apps.forEach(app => {
+                    container.insertAdjacentHTML('beforeend', renderApplication(app));
+                });
+
+                // refresh overall stats (approved/rejected counts)
+                await refreshStats();
+            } catch (err) {
+                container.innerHTML = '<div class="empty-state"><h3>Error loading applications</h3><p>' + err.message + '</p></div>';
+            }
+        }
+
+        // Fetch and update dashboard stats from server
+        async function refreshStats() {
+            try {
+                const res = await fetch('/api/admin/stats');
+                if (!res.ok) throw new Error('Failed to fetch stats');
+                const data = await res.json();
+                const s = data.stats || {};
+
+                const pendingDrivers = s.pending_drivers || 0;
+                const approvedDrivers = s.approved_drivers || 0;
+
+                const pendingEl = document.getElementById('pendingDrivers');
+                if (pendingEl) pendingEl.textContent = pendingDrivers;
+                const tabPending = document.getElementById('tabPendingCount');
+                if (tabPending) tabPending.textContent = pendingDrivers;
+
+                const approvedCard = document.getElementById('approvedDrivers');
+                if (approvedCard) approvedCard.textContent = approvedDrivers;
+                const approvedHeader = document.getElementById('approvedDriversHeader');
+                if (approvedHeader) approvedHeader.textContent = approvedDrivers;
+                const tabApproved = document.getElementById('tabApprovedCount');
+                if (tabApproved) tabApproved.textContent = approvedDrivers;
+
+                // rejected count isn't provided by /api/admin/stats; leave tabRejected as-is or set to 0
+                const tabRejected = document.getElementById('tabRejectedCount');
+                if (tabRejected && (s.rejected_drivers !== undefined)) tabRejected.textContent = s.rejected_drivers;
+            } catch (err) {
+                console.warn('Failed to refresh stats:', err.message || err);
+            }
+        }
+
+        // Render a single application card HTML string
+        function renderApplication(app) {
+            // app should include id, name, email, licenseNumber, vehicle, appliedAt, attachments (optional)
+            const id = app.id || app._id || app.applicationId || 'unknown';
+            const name = escapeHtml(app.name || app.fullName || app.username || 'Unknown');
+            const email = escapeHtml(app.email || '');
+            const license = escapeHtml(app.licenseNumber || app.license || 'Not provided');
+            const vehicle = escapeHtml(app.vehicle || app.vehicleInfo || 'Not provided');
+            const appliedAt = app.appliedAt ? new Date(app.appliedAt).toLocaleString() : (app.createdAt ? new Date(app.createdAt).toLocaleString() : 'Unknown');
+
+            return `
+                <div class="verification-card" id="app-${id}" data-user-id="${app.user_id || app.userId || ''}">
+                    <div class="verification-header">
+                        <div class="user-details">
+                            <h3>${name}</h3>
+                            <div class="detail-row"><span class="detail-label">Email:</span><span>${email}</span></div>
+                            <div class="detail-row"><span class="detail-label">License:</span><span>${license}</span></div>
+                            <div class="detail-row"><span class="detail-label">Vehicle:</span><span>${vehicle}</span></div>
+                            <div class="detail-row"><span class="detail-label">Applied:</span><span>${appliedAt}</span></div>
+                        </div>
+                        <div>
+                            <span class="status-badge pending">Pending</span>
+                        </div>
+                    </div>
+                    <div class="verification-actions">
+                        <button class="approve-btn" onclick="approveDriver('${id}')">Approve Driver</button>
+                        <button class="reject-btn" onclick="rejectDriver('${id}')">Reject</button>
+                        <button class="view-btn" onclick="viewApplication('${id}')">View Details</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Simple HTML escaper to avoid injecting raw values
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        // View application details - opens modal with JSON for now
+            async function viewApplication(id) {
+                try {
+                    // Our server exposes application details by user id at /api/driver-application/:userId
+                    // The renderApplication includes the application id, but the server stored user_id as `user_id`.
+                    // Fetch the pending drivers list and find the matching application to obtain user_id.
+                    const resList = await fetch('/api/admin/pending-drivers');
+                    if (!resList.ok) throw new Error('Failed to fetch list');
+                    const jsonList = await resList.json();
+                    const found = (jsonList.applications || []).find(a => String(a.id) === String(id));
+                    const userId = found ? (found.user_id || found.userId) : null;
+
+                    if (!userId) throw new Error('Cannot determine user id for application');
+
+                    const res = await fetch('/api/driver-application/' + encodeURIComponent(userId));
+                    if (!res.ok) throw new Error('Failed to fetch application details');
+                    const app = await res.json();
+                    const pretty = JSON.stringify(app, null, 2);
+                    showSuccess('Application Details:\n\n' + pretty);
+                } catch (err) {
+                    alert('Failed to load application details: ' + err.message);
+                }
+            }
+
+        // Client-side filter of rendered pending applications
+        function filterPending(query) {
+            const cards = Array.from(document.querySelectorAll('#pendingGrid .verification-card'));
+            if (!query) {
+                cards.forEach(c => c.style.display = 'block');
+                return;
+            }
+            cards.forEach(card => {
+                const text = card.textContent.toLowerCase();
+                card.style.display = text.includes(query) ? 'block' : 'none';
+            });
         }
 
         // Admin Management
@@ -1159,7 +1295,7 @@
             });
             localStorage.setItem('adminCredentials', JSON.stringify(admins));
 
-            showSuccess('Admin account created successfully! ✅\n\nUsername: ' + username + '\nRole: ' + role + '\n\nShare these credentials securely with the new administrator.');
+            showSuccess('Admin account created successfully.\n\nUsername: ' + username + '\nRole: ' + role + '\n\nShare these credentials securely with the new administrator.');
 
             // Clear form
             document.getElementById('newAdminUsername').value = '';
