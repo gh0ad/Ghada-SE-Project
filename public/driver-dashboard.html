@@ -578,6 +578,41 @@
     <script>
         // Initialize Socket.io
         const socket = io();
+
+        // In-app notification helper
+        function showNotification(message) {
+            try {
+                if (window && window.alert) {
+                    // fallback to simple alert for driver dashboard
+                    alert(message);
+                }
+            } catch (e) {
+                console.warn('Notification error', e);
+            }
+        }
+
+        // Listen for driver status updates (approve/reject)
+        socket.on('driverStatusUpdated', (data) => {
+            try {
+                if (!data) return;
+                // If the event is not for this user, ignore
+                if (!userData || !data.userId || String(data.userId) !== String(userData.id)) return;
+
+                // Update local session state
+                userData.driverStatus = data.status || (data.approved ? 'approved' : 'rejected');
+                userData.isActiveDriver = !!data.approved;
+                sessionStorage.setItem('userData', JSON.stringify(userData));
+
+                if (data.approved) {
+                    showNotification('Your driver application was approved. Driver features are now enabled. The page will reload to activate them.');
+                    setTimeout(() => { location.reload(); }, 1200);
+                } else {
+                    showNotification('Your driver application was rejected.' + (data.reason ? '\nReason: ' + data.reason : ''));
+                }
+            } catch (e) {
+                console.warn('Error handling driverStatusUpdated:', e);
+            }
+        });
         
         // Get driver info from session
         const username = sessionStorage.getItem('username') || 'Driver';
