@@ -660,11 +660,27 @@
                 <div class="ride-form">
                     <div class="form-group">
                         <label for="pickupLocation">Pickup Location</label>
-                        <input type="text" id="pickupLocation" placeholder="Enter pickup location" required>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <input type="text" id="pickupLocation" placeholder="Search or pick on map" required style="flex:1">
+                            <button class="map-btn" id="pickPickupOnMap" title="Pick pickup on map" type="button">📍</button>
+                        </div>
+                        <ul id="pickupSuggestions" style="list-style:none; padding-left:0; margin-top:6px; display:none; max-height:160px; overflow:auto; border:1px solid #e2e8f0; border-radius:6px; background:white;"></ul>
                     </div>
                     <div class="form-group">
                         <label for="destination">Destination</label>
-                        <input type="text" id="destination" placeholder="Enter destination" required>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <input type="text" id="destination" placeholder="Search or pick on map" required style="flex:1">
+                            <button class="map-btn" id="pickDestOnMap" title="Pick destination on map" type="button">📍</button>
+                        </div>
+                        <ul id="destSuggestions" style="list-style:none; padding-left:0; margin-top:6px; display:none; max-height:160px; overflow:auto; border:1px solid #e2e8f0; border-radius:6px; background:white;"></ul>
+                    </div>
+                    <div class="form-group">
+                        <label for="genderPref">Gender preference</label>
+                        <select id="genderPref">
+                            <option value="no_preference">Doesn't matter</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label for="passengers">Number of Passengers</label>
@@ -864,7 +880,10 @@
         <div class="profile-container">
             <!-- Profile Header -->
             <div class="profile-header">
-                <div class="profile-avatar">👤</div>
+                <div class="profile-avatar" id="profileAvatar" style="position:relative;">
+                    <span id="profileAvatarContent">👤</span>
+                    <button id="editAvatarBtn" title="Change avatar" style="position:absolute; right:-6px; bottom:-6px; background:#fff; border:1px solid #e2e8f0; border-radius:50%; width:28px; height:28px; cursor:pointer;">✎</button>
+                </div>
                 <h2 id="profileName">User Name</h2>
                 <p id="profileEmail">user@sm.imamu.edu.sa</p>
                 <div class="profile-stats">
@@ -880,10 +899,41 @@
                         <div class="stat-value" id="joinDate">Nov 2025</div>
                         <div class="stat-label">Member Since</div>
                     </div>
+                    <!-- Wallet balance moved to wallet box below -->
+                </div>
+            </div>
+
+            <!-- Wallet Box (separate from profile edit form) -->
+            <div class="section" id="walletBox" style="max-width:900px; margin: 1rem auto; background: white; padding: 1.25rem; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.06);">
+                <h3 class="section-title">💳 In-app Wallet</h3>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+                    <div style="font-size:1.5rem; font-weight:700; color:#065f46;">Balance: <span id="profileWalletBalance">Loading...</span></div>
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        <input type="number" id="topupAmount" placeholder="Amount (SAR)" min="1" style="width:160px; padding:8px; border:2px solid #e2e8f0; border-radius:6px;">
+                        <button class="submit-btn" type="button" id="topupBtn">Top up</button>
+                    </div>
+                    <div style="flex-basis:100%; color:#64748b; margin-top:0.5rem;">Top-ups here call the server endpoint. Implement a real payment provider server-side for production.</div>
+                </div>
+            </div>
+
+            <!-- Avatar menu (hidden) - toggled from small edit icon on profile avatar -->
+            <div id="avatarMenu" style="display:none; position:fixed; z-index:2000; background:white; padding:12px; border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,0.12);">
+                <div style="margin-bottom:8px; font-weight:700;">Change profile picture</div>
+                <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+                    <button type="button" class="small-avatar-btn" data-avatar="😀">😀</button>
+                    <button type="button" class="small-avatar-btn" data-avatar="😎">😎</button>
+                    <button type="button" class="small-avatar-btn" data-avatar="🧑‍🎓">🧑‍🎓</button>
+                    <button type="button" class="small-avatar-btn" data-avatar="🚗">🚗</button>
+                    <button type="button" class="small-avatar-btn" data-avatar="🎓">🎓</button>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <input id="avatarFile" type="file" accept="image/*">
+                    <button class="submit-btn" id="uploadAvatarBtn" type="button">Upload</button>
                 </div>
             </div>
 
             <!-- Profile Form -->
+            <!-- Wallet box moved out of profile form into its own section below the header -->
             <div class="profile-form">
                 <h3 class="profile-form-title">Edit Profile</h3>
                 <div class="form-row">
@@ -904,6 +954,17 @@
                     <div class="form-group">
                         <label for="profileMajor">Major</label>
                         <input type="text" id="profileMajor" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="profileGender">Gender <span style="color:#dc2626">*</span></label>
+                        <select id="profileGender" required style="width:100%; padding:0.75rem; border:2px solid #e2e8f0; border-radius:8px;">
+                            <option value="">Select gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="other">Other / Prefer not to say</option>
+                        </select>
                     </div>
                 </div>
                 <button class="save-btn" onclick="saveProfile()">Save Changes</button>
@@ -963,6 +1024,24 @@
             document.getElementById('profileUniversity').value = userData.university;
             document.getElementById('profileMajor').value = userData.major || '';
 
+            // set gender if present
+            if (userData.gender) {
+                const g = document.getElementById('profileGender'); if (g) g.value = userData.gender;
+            }
+
+            // avatar: update header avatar using server-provided URL or emoji in userData.avatar
+            const profileAvatarContent = document.getElementById('profileAvatarContent');
+            if (userData.avatar) {
+                if (userData.avatar.startsWith('http') || userData.avatar.startsWith('data:')) {
+                    profileAvatarContent.innerHTML = '';
+                    const small = document.createElement('img');
+                    small.src = userData.avatar; small.style.width='46px'; small.style.height='46px'; small.style.borderRadius='50%';
+                    profileAvatarContent.appendChild(small);
+                } else {
+                    profileAvatarContent.textContent = userData.avatar;
+                }
+            }
+
             // Update driver form (pre-fill known info)
             document.getElementById('driverNameInput').value = userData.username;
             document.getElementById('driverEmailInput').value = userData.email;
@@ -979,6 +1058,15 @@
             if (pmEl) pmEl.addEventListener('change', updatePaymentUI);
             if (payBtn) payBtn.addEventListener('click', payNow);
             updatePaymentUI();
+            // Setup search inputs for pickup/destination
+            setupSearchInputs();
+            // fetch wallet balance for profile and payment UI
+            fetchWalletBalance();
+            // top up button
+            const topupBtn = document.getElementById('topupBtn');
+            if (topupBtn) topupBtn.addEventListener('click', topUpWallet);
+            // avatar controls
+            setupAvatarControls();
         };
 
         // Initialize Map
@@ -1006,6 +1094,53 @@
                     map.setView([userLocation.lat, userLocation.lng], 15);
                 });
             }
+
+            // map click modes for selecting pickup/destination
+            map.pickMode = null; // 'pickup' | 'dest' | null
+            map.on('click', function(e) {
+                if (map.pickMode === 'pickup') {
+                    setPickupCoords(e.latlng.lat, e.latlng.lng, 'Picked from map');
+                    map.pickMode = null;
+                    document.getElementById('pickPickupOnMap').classList.remove('active');
+                } else if (map.pickMode === 'dest') {
+                    setDestCoords(e.latlng.lat, e.latlng.lng, 'Picked from map');
+                    map.pickMode = null;
+                    document.getElementById('pickDestOnMap').classList.remove('active');
+                }
+            });
+        }
+
+        // pickup/destination markers and coords
+        let pickupCoords = null, destCoords = null;
+        let pickupMarker = null, destMarker = null;
+
+        function setPickupCoords(lat, lng, label) {
+            pickupCoords = { lat, lng };
+            document.getElementById('pickupLocation').value = label || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            if (pickupMarker) pickupMarker.setLatLng([lat,lng]);
+            else pickupMarker = L.marker([lat,lng], { title: 'Pickup' }).addTo(map);
+            map.setView([lat,lng], 15);
+        }
+
+        function setDestCoords(lat, lng, label) {
+            destCoords = { lat, lng };
+            document.getElementById('destination').value = label || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            if (destMarker) destMarker.setLatLng([lat,lng]);
+            else destMarker = L.marker([lat,lng], { title: 'Destination', icon: L.divIcon({html:'🎯', className:'dest-marker', iconSize:[30,30]}) }).addTo(map);
+            map.setView([lat,lng], 15);
+        }
+
+        // Setup pick-on-map toggle buttons
+        function togglePickMode(mode) {
+            if (!map) return;
+            if (map.pickMode === mode) {
+                map.pickMode = null;
+                document.getElementById(mode === 'pickup' ? 'pickPickupOnMap' : 'pickDestOnMap').classList.remove('active');
+            } else {
+                map.pickMode = mode;
+                document.getElementById('pickPickupOnMap').classList.toggle('active', mode === 'pickup');
+                document.getElementById('pickDestOnMap').classList.toggle('active', mode === 'dest');
+            }
         }
 
         function centerMap() {
@@ -1031,6 +1166,85 @@
         // Payment integration variables
         let paymentConfirmed = false; // true after successful card payment
         const fareEstimate = 15.00;
+
+        // Geocoding (Nominatim) helpers for search suggestions
+        let pickupSearchTimer = null, destSearchTimer = null;
+        async function geocode(query) {
+            if (!query || query.length < 2) return [];
+            try {
+                const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=6&q=' + encodeURIComponent(query);
+                const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                if (!res.ok) return [];
+                const data = await res.json();
+                return data.map(d => ({ display_name: d.display_name, lat: parseFloat(d.lat), lon: parseFloat(d.lon) }));
+            } catch (err) {
+                console.error('Geocode error', err);
+                return [];
+            }
+        }
+
+        function showSuggestions(listElId, results, onSelect) {
+            const ul = document.getElementById(listElId);
+            ul.innerHTML = '';
+            if (!results || results.length === 0) { ul.style.display = 'none'; return; }
+            results.forEach(r => {
+                const li = document.createElement('li');
+                li.style.padding = '8px';
+                li.style.borderBottom = '1px solid #f1f5f9';
+                li.style.cursor = 'pointer';
+                li.textContent = r.display_name;
+                li.addEventListener('click', () => onSelect(r));
+                ul.appendChild(li);
+            });
+            ul.style.display = 'block';
+        }
+
+        // Wire up input events for live search (debounced)
+        function setupSearchInputs() {
+            const pickupIn = document.getElementById('pickupLocation');
+            const destIn = document.getElementById('destination');
+
+            pickupIn.addEventListener('input', () => {
+                clearTimeout(pickupSearchTimer);
+                pickupSearchTimer = setTimeout(async () => {
+                    const q = pickupIn.value.trim();
+                    if (!q) { showSuggestions('pickupSuggestions', []); return; }
+                    const res = await geocode(q);
+                    showSuggestions('pickupSuggestions', res, (sel) => {
+                        setPickupCoords(sel.lat, sel.lon, sel.display_name);
+                        showSuggestions('pickupSuggestions', []);
+                    });
+                }, 350);
+            });
+
+            destIn.addEventListener('input', () => {
+                clearTimeout(destSearchTimer);
+                destSearchTimer = setTimeout(async () => {
+                    const q = destIn.value.trim();
+                    if (!q) { showSuggestions('destSuggestions', []); return; }
+                    const res = await geocode(q);
+                    showSuggestions('destSuggestions', res, (sel) => {
+                        setDestCoords(sel.lat, sel.lon, sel.display_name);
+                        showSuggestions('destSuggestions', []);
+                    });
+                }, 350);
+            });
+
+            // hide suggestions when clicking elsewhere
+            document.addEventListener('click', (ev) => {
+                const path = ev.composedPath ? ev.composedPath() : (ev.path || []);
+                const pickupUl = document.getElementById('pickupSuggestions');
+                const destUl = document.getElementById('destSuggestions');
+                if (pickupUl && !path.includes(pickupUl) && !path.includes(pickupIn)) pickupUl.style.display = 'none';
+                if (destUl && !path.includes(destUl) && !path.includes(destIn)) destUl.style.display = 'none';
+            });
+
+            // pick on map buttons
+            const pickPickupBtn = document.getElementById('pickPickupOnMap');
+            const pickDestBtn = document.getElementById('pickDestOnMap');
+            if (pickPickupBtn) pickPickupBtn.addEventListener('click', () => togglePickMode('pickup'));
+            if (pickDestBtn) pickDestBtn.addEventListener('click', () => togglePickMode('dest'));
+        }
 
         // Update payment UI state
         function updatePaymentUI() {
@@ -1063,13 +1277,23 @@
                 });
                 if (res.ok) {
                     const d = await res.json();
-                    document.getElementById('walletBalance').textContent = (d.balance || 0).toFixed(2) + ' SAR';
+                    const bal = (d.balance || 0).toFixed(2) + ' SAR';
+                    const el = document.getElementById('walletBalance');
+                    if (el) el.textContent = bal;
+                    const pEl = document.getElementById('profileWalletBalance');
+                    if (pEl) pEl.textContent = bal;
+                    const statEl = document.getElementById('walletStat');
+                    if (statEl) statEl.textContent = bal;
                 } else {
-                    document.getElementById('walletBalance').textContent = 'N/A';
+                    const el = document.getElementById('walletBalance'); if (el) el.textContent = 'N/A';
+                    const pEl = document.getElementById('profileWalletBalance'); if (pEl) pEl.textContent = 'N/A';
+                    const statEl = document.getElementById('walletStat'); if (statEl) statEl.textContent = 'N/A';
                 }
             } catch (err) {
                 console.error('Wallet balance error', err);
-                document.getElementById('walletBalance').textContent = 'N/A';
+                const el = document.getElementById('walletBalance'); if (el) el.textContent = 'N/A';
+                const pEl = document.getElementById('profileWalletBalance'); if (pEl) pEl.textContent = 'N/A';
+                const statEl = document.getElementById('walletStat'); if (statEl) statEl.textContent = 'N/A';
             }
         }
 
@@ -1107,15 +1331,150 @@
             }
         }
 
+        // Avatar selection & upload handlers
+        function setupAvatarControls() {
+            // app-provided avatars
+            document.querySelectorAll('[data-avatar]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const a = btn.getAttribute('data-avatar');
+                    // set header avatar
+                    const profileAvatar = document.getElementById('profileAvatar');
+                    if (profileAvatar) {
+                        const c = document.getElementById('profileAvatarContent'); if (c) c.textContent = a;
+                    }
+                    // persist locally
+                    userData.avatar = a;
+                    sessionStorage.setItem('userData', JSON.stringify(userData));
+                });
+            });
+
+            // upload file
+            const uploadBtn = document.getElementById('uploadAvatarBtn');
+            uploadBtn && uploadBtn.addEventListener('click', async () => {
+                const fileIn = document.getElementById('avatarFile');
+                if (!fileIn || !fileIn.files || !fileIn.files[0]) { alert('Choose an image file first'); return; }
+                const file = fileIn.files[0];
+                // preview locally
+                const reader = new FileReader();
+                reader.onload = () => {
+                    // optimistic update header avatar
+                    const profileAvatar = document.getElementById('profileAvatar');
+                    if (profileAvatar) {
+                        const c = document.getElementById('profileAvatarContent'); if (c) { c.innerHTML = ''; const smallImg = document.createElement('img'); smallImg.src = reader.result; smallImg.style.width='46px'; smallImg.style.height='46px'; smallImg.style.borderRadius='50%'; c.appendChild(smallImg); }
+                    }
+                    // optimistic update session storage
+                    userData.avatar = reader.result;
+                    sessionStorage.setItem('userData', JSON.stringify(userData));
+                };
+                reader.readAsDataURL(file);
+
+                // upload to server
+                try {
+                    const fd = new FormData(); fd.append('avatar', file);
+                    const res = await fetch('/api/users/avatar', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${sessionStorage.getItem('authToken')}` },
+                        body: fd
+                    });
+                    if (res.ok) {
+                        const d = await res.json();
+                        // expect { url: '<avatar-url>' }
+                        if (d.url) {
+                            userData.avatar = d.url; sessionStorage.setItem('userData', JSON.stringify(userData));
+                        }
+                        alert('Avatar uploaded');
+                    } else {
+                        alert('Avatar upload failed');
+                    }
+                } catch (err) {
+                    console.error('Upload avatar error', err);
+                    alert('Network error when uploading avatar');
+                }
+            });
+            // edit avatar button toggles avatarMenu
+            const editBtn = document.getElementById('editAvatarBtn');
+            const menu = document.getElementById('avatarMenu');
+            if (editBtn && menu) {
+                editBtn.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    // position menu near avatar
+                    const rect = document.getElementById('profileAvatar').getBoundingClientRect();
+                    menu.style.left = (rect.right + 8) + 'px';
+                    menu.style.top = (rect.top) + 'px';
+                    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+                });
+
+                // hide menu when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!menu.contains(e.target) && e.target !== editBtn) {
+                        menu.style.display = 'none';
+                    }
+                });
+            }
+        }
+
+        // Top up wallet from profile
+        async function topUpWallet() {
+            const amountEl = document.getElementById('topupAmount');
+            const v = parseFloat(amountEl.value);
+            if (!v || v <= 0) { alert('Enter a valid amount to top up'); return; }
+
+            try {
+                const res = await fetch('/api/wallet/topup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${sessionStorage.getItem('authToken')}`
+                    },
+                    body: JSON.stringify({ amount: v })
+                });
+
+                if (res.ok) {
+                    alert('Top-up successful');
+                    amountEl.value = '';
+                    fetchWalletBalance();
+                } else {
+                    const e = await res.json().catch(()=>({ error: 'Top-up failed' }));
+                    alert(e.error || 'Top-up failed');
+                }
+            } catch (err) {
+                console.error('Top-up error', err);
+                alert('Network error while topping up');
+            }
+        }
+
         // Request Ride (handles payment method)
         async function requestRide() {
-            const pickup = document.getElementById('pickupLocation').value;
-            const destination = document.getElementById('destination').value;
+            const pickupText = (document.getElementById('pickupLocation').value || '').trim();
+            const destinationText = (document.getElementById('destination').value || '').trim();
             const passengers = parseInt(document.getElementById('passengers').value);
             const paymentMethod = document.getElementById('paymentMethod').value;
+            const genderPref = document.getElementById('genderPref') ? document.getElementById('genderPref').value : 'no_preference';
 
-            if (!pickup || !destination) {
-                alert('Please fill in all fields');
+            if (!pickupText || !destinationText) {
+                alert('Please fill in pickup and destination');
+                return;
+            }
+
+            // Ensure we have coordinates for pickup/destination: prefer explicit picks; fallback to geocoding the entered text
+            if (!pickupCoords) {
+                const r = await geocode(pickupText);
+                if (r && r.length) setPickupCoords(r[0].lat, r[0].lon, r[0].display_name);
+            }
+            if (!destCoords) {
+                const r2 = await geocode(destinationText);
+                if (r2 && r2.length) setDestCoords(r2[0].lat, r2[0].lon, r2[0].display_name);
+            }
+
+            if (!pickupCoords || !destCoords) {
+                alert('Could not determine coordinates for pickup or destination. Please pick from suggestions or on the map.');
+                return;
+            }
+
+            // Ensure user has gender set
+            if (!userData || !userData.gender) {
+                alert('Please set your gender in your profile before requesting a ride.');
+                switchTab('profile');
                 return;
             }
 
@@ -1157,13 +1516,14 @@
                     },
                     body: JSON.stringify({
                         studentId: userData.id,
-                        pickupLocation: pickup,
-                        pickupLat: userLocation?.lat || 24.810822,
-                        pickupLng: userLocation?.lng || 46.710885,
-                        destinationLocation: destination,
-                        destinationLat: 24.820822,
-                        destinationLng: 46.720885,
+                        pickupLocation: pickupText,
+                        pickupLat: pickupCoords.lat,
+                        pickupLng: pickupCoords.lng,
+                        destinationLocation: destinationText,
+                        destinationLat: destCoords.lat,
+                        destinationLng: destCoords.lng,
                         passengers: passengers,
+                        genderPreference: genderPref,
                         fare: fareEstimate,
                         paymentMethod: paymentMethod,
                         paid: paymentMethod === 'cash' ? false : true
@@ -1277,16 +1637,20 @@
             const username = document.getElementById('profileUsername').value;
             const phone = document.getElementById('profilePhone').value;
             const major = document.getElementById('profileMajor').value;
+            const gender = document.getElementById('profileGender').value;
 
             if (!username || !phone) {
                 alert('Please fill in all fields');
                 return;
             }
 
+            if (!gender) { alert('Please select your gender before saving. Gender is required to request rides.'); return; }
+
             alert('✅ Profile updated successfully!');
             userData.username = username;
             userData.phone = phone;
             userData.major = major;
+            userData.gender = gender;
             sessionStorage.setItem('userData', JSON.stringify(userData));
         }
 
