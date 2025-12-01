@@ -48,6 +48,9 @@ app.use(express.static(__dirname));
 // In-memory storage for active sessions
 const activeSockets = new Map();
 const onlineDrivers = new Map();
+// Pending notifications for users who were offline when an event occurred.
+// Map<userId, Array<payload>>; replayed when user joins room or reconnects.
+const pendingNotifications = new Map();
 
 // ==================== AUTH ENDPOINTS ====================
 
@@ -273,6 +276,7 @@ app.post('/api/login', async (req, res) => {
 
 app.post('/api/driver-application', async (req, res) => {
     try {
+        console.log('POST /api/driver-application body:', req.body);
         const { userId, licenseNumber, vehicleMake, vehicleModel, vehicleYear, vehicleColor, plateNumber } = req.body;
         
         const existing = await pool.query(
@@ -298,7 +302,7 @@ app.post('/api/driver-application', async (req, res) => {
         });
     } catch (error) {
         console.error('Driver application error:', error);
-        res.status(500).json({ error: 'Application submission failed' });
+        res.status(500).json({ error: 'Application submission failed: ' + (error.message || error) });
     }
 });
 
@@ -363,6 +367,24 @@ app.get('/api/admin/pending-drivers', async (req, res) => {
     }
 });
 
+// Return approved driver applications for admin listing
+app.get('/api/admin/approved-drivers', async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT da.*, u.username, u.email, u.student_id, u.university
+             FROM driver_applications da
+             JOIN users u ON da.user_id = u.id
+             WHERE da.status = 'approved'
+             ORDER BY da.reviewed_at DESC`
+        );
+
+        res.json({ applications: result.rows });
+    } catch (error) {
+        console.error('Get approved drivers error:', error);
+        res.status(500).json({ error: 'Failed to get approved applications' });
+    }
+});
+
 app.post('/api/admin/approve-student', async (req, res) => {
     try {
         const { studentId } = req.body;
@@ -409,8 +431,41 @@ app.post('/api/admin/review-driver', async (req, res) => {
                 userId
             };
             try {
+                // If specific socket is connected, emit directly for lower latency
+                // If a specific socketId mapping exists, emit directly
+                let delivered = false;
                 if (socketId && io && io.to) {
-                    io.to(socketId).emit('driverStatusUpdated', payload);
+                    try {
+                        io.to(socketId).emit('driverStatusUpdated', payload);
+                        console.log(`Emitted driverStatusUpdated to user ${userId} at socket ${socketId}`, payload);
+                        delivered = true;
+                    } catch (e) {
+                        console.warn('Direct emit failed', e.message || e);
+                    }
+                }
+
+                // Emit to the user's room as the primary scalable delivery method.
+                try {
+                    const room = `user:${userId}`;
+                    // If the room exists and has members, emit and mark delivered
+                    const roomSet = io.sockets.adapter.rooms.get(room);
+                    if (roomSet && roomSet.size > 0) {
+                        io.to(room).emit('driverStatusUpdated', payload);
+                        console.log(`Emitted driverStatusUpdated to room ${room}`, payload);
+                        delivered = true;
+                    } else {
+                        console.log(`Room ${room} has no members right now`);
+                    }
+                } catch (e) {
+                    console.warn('Failed to emit to user room:', e.message || e);
+                }
+
+                // If not delivered to any connected socket, store for replay when user reconnects/joins room
+                if (!delivered) {
+                    const arr = pendingNotifications.get(userId) || [];
+                    arr.push(payload);
+                    pendingNotifications.set(userId, arr);
+                    console.log(`Stored pending notification for user ${userId}. Total pending: ${arr.length}`);
                 }
             } catch (e) {
                 console.warn('Failed to emit driverStatusUpdated:', e.message || e);
@@ -421,6 +476,126 @@ app.post('/api/admin/review-driver', async (req, res) => {
     } catch (error) {
         console.error('Review driver error:', error);
         res.status(500).json({ error: 'Failed to review application' });
+    }
+});
+
+// Return the current user's profile based on JWT in Authorization header
+app.get('/api/users/me', async (req, res) => {
+    try {
+        const auth = req.headers.authorization || req.headers.Authorization;
+        if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing token' });
+        const token = auth.split(' ')[1];
+        let payload;
+        try {
+            payload = jwt.verify(token, JWT_SECRET);
+        } catch (err) {
+            return res.status(401).json({ error: 'Invalid token' });
+        }
+
+        const userId = payload.userId || payload.userID || payload.id;
+        if (!userId) return res.status(400).json({ error: 'Invalid token payload' });
+
+        const result = await pool.query(
+            `SELECT u.*, 
+                    da.id as driver_app_id,
+                    da.status as driver_status,
+                    da.is_active_driver,
+                    da.is_online,
+                    da.total_rides,
+                    da.rating,
+                    da.total_earnings
+             FROM users u
+             LEFT JOIN driver_applications da ON u.id = da.user_id
+             WHERE u.id = $1`,
+            [userId]
+        );
+
+        if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+        const user = result.rows[0];
+
+        res.json({
+            id: user.id,
+            username: user.username,
+            fullName: user.full_name || user.fullName || null,
+            email: user.email,
+            studentId: user.student_id,
+            university: user.university,
+            major: user.major,
+            phone: user.phone,
+            accountType: user.account_type,
+            isVerified: user.is_verified,
+            driverAppId: user.driver_app_id,
+            driverStatus: user.driver_status,
+            isActiveDriver: user.is_active_driver,
+            driverStats: user.is_active_driver ? {
+                totalRides: user.total_rides,
+                rating: parseFloat(user.rating || 0),
+                totalEarnings: parseFloat(user.total_earnings || 0)
+            } : null
+        });
+    } catch (error) {
+        console.error('Get /api/users/me error:', error);
+        res.status(500).json({ error: 'Failed to get profile' });
+    }
+});
+
+// Update current user's profile (protected)
+app.post('/api/users/update', async (req, res) => {
+    try {
+        const auth = req.headers.authorization || req.headers.Authorization;
+        if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing token' });
+        const token = auth.split(' ')[1];
+        let payload;
+        try { payload = jwt.verify(token, JWT_SECRET); } catch (err) { return res.status(401).json({ error: 'Invalid token' }); }
+
+        const userId = payload.userId || payload.userID || payload.id;
+        if (!userId) return res.status(400).json({ error: 'Invalid token payload' });
+
+        const { username, phone, major, gender, fullName, avatar } = req.body || {};
+
+        // Build a dynamic update statement for only provided fields
+        const updates = [];
+        const values = [];
+        let idx = 1;
+        if (username !== undefined) { updates.push(`username = $${idx++}`); values.push(username); }
+        if (phone !== undefined) { updates.push(`phone = $${idx++}`); values.push(phone); }
+        if (major !== undefined) { updates.push(`major = $${idx++}`); values.push(major); }
+        if (gender !== undefined) { updates.push(`gender = $${idx++}`); values.push(gender); }
+        if (fullName !== undefined) {
+            // ensure the column exists (safe to run on every request)
+            try {
+                await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(200)`);
+            } catch (e) {
+                console.warn('Could not ensure full_name column exists:', e.message || e);
+            }
+            updates.push(`full_name = $${idx++}`); values.push(fullName);
+        }
+        if (avatar !== undefined) {
+            // ensure avatar column exists
+            try {
+                await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT`);
+            } catch (e) {
+                console.warn('Could not ensure avatar column exists:', e.message || e);
+            }
+            updates.push(`avatar = $${idx++}`); values.push(avatar);
+        }
+
+        if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+        // add updated_at
+        updates.push(`updated_at = NOW()`);
+
+        const sql = `UPDATE users SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, username, email, student_id, university, major, phone, account_type, gender, is_verified, avatar, full_name`;
+        values.push(userId);
+
+        const result = await pool.query(sql, values);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+        res.json({ success: true, user: result.rows[0] });
+    } catch (error) {
+        console.error('Update profile error:', error);
+        res.status(500).json({ error: 'Failed to update profile' });
     }
 });
 
@@ -574,8 +749,56 @@ io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
     
     socket.on('authenticate', (userId) => {
-        activeSockets.set(userId, socket.id);
-        console.log(`User ${userId} authenticated`);
+        try {
+            // Accept either a raw userId or a JWT token
+            let resolvedUserId = userId;
+            if (typeof userId === 'string' && userId.split('.').length === 3) {
+                // looks like a JWT
+                try {
+                    const payload = jwt.verify(userId, JWT_SECRET);
+                    resolvedUserId = payload.userId || payload.userID || payload.id;
+                } catch (err) {
+                    console.warn('Socket auth: invalid token provided');
+                    resolvedUserId = null;
+                }
+            }
+
+            if (resolvedUserId) {
+                activeSockets.set(resolvedUserId, socket.id);
+                console.log(`User ${resolvedUserId} authenticated (socket ${socket.id})`);
+            } else {
+                console.warn('Socket authenticate failed - no valid userId');
+            }
+        } catch (err) {
+            console.warn('Socket authenticate error', err);
+        }
+    });
+
+    // Support lightweight room join by userId so we can emit to rooms without requiring JWT
+    socket.on('joinUserRoom', (userId) => {
+        try {
+            if (!userId) return;
+            const room = `user:${userId}`;
+            socket.join(room);
+            console.log(`Socket ${socket.id} joined room ${room}`);
+            // keep mapping as well
+            activeSockets.set(userId, socket.id);
+            // If there are pending notifications for this user, replay them now
+            try {
+                const pending = pendingNotifications.get(userId);
+                if (pending && pending.length > 0) {
+                    pending.forEach(p => {
+                        try { io.to(room).emit('driverStatusUpdated', p); } catch (e) { console.warn('Replay emit failed', e); }
+                    });
+                    pendingNotifications.delete(userId);
+                    console.log(`Replayed ${pending.length} pending notifications for user ${userId}`);
+                }
+            } catch (e) {
+                console.warn('Error replaying pending notifications', e);
+            }
+        } catch (err) {
+            console.warn('joinUserRoom error', err);
+        }
     });
     
     socket.on('driverOnline', async (data) => {

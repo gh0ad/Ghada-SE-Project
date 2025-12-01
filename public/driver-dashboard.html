@@ -734,6 +734,8 @@
             
             // Authenticate socket
             socket.emit('authenticate', userData.id);
+            // join user room for direct emits from server
+            socket.emit('joinUserRoom', userData.id);
             
             // Load available rides
             loadRideRequests();

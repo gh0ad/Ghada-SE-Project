@@ -696,7 +696,7 @@
     <aside class="sidebar">
         <div class="sidebar-logo">
             <a id="adminLogo" href="/index.html" style="display:flex; align-items:center; gap:0.5rem; text-decoration:none; color:inherit;">
-                <div style="width:36px; height:36px; background:#fff; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#1e40af; font-weight:700;">A</div>
+                <div style="width:36px; height:36px; background:#fff; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#1e40af; font-weight:700; font-size:1rem;">ō͡≡o</div>
                 <span>Amam Admin</span>
             </a>
         </div>
@@ -764,10 +764,11 @@
             </div>
 
             <div id="approvedTab" class="tab-content">
-                <div class="empty-state">
-                    <div class="empty-icon"></div>
-                    <h3><span id="approvedDriversHeader">0</span> Approved Drivers</h3>
-                    <p>All drivers have been verified and are active on the platform</p>
+                <div class="controls">
+                    <input type="text" id="searchApproved" class="search-input" placeholder="Search approved drivers...">
+                </div>
+                <div class="verification-grid" id="approvedGrid">
+                    <!-- Approved driver list will be rendered here -->
                 </div>
             </div>
 
@@ -1054,6 +1055,10 @@
 
             document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
+            // load tab-specific data
+            if (tab === 'approved') {
+                loadApprovedApplications();
+            }
         }
 
         // Announcements
@@ -1167,6 +1172,77 @@
                 await refreshStats();
             } catch (err) {
                 container.innerHTML = '<div class="empty-state"><h3>Error loading applications</h3><p>' + err.message + '</p></div>';
+            }
+        }
+
+        // Fetch approved driver applications and render them
+        async function loadApprovedApplications() {
+            const container = document.getElementById('approvedGrid');
+            if (!container) return;
+            container.innerHTML = '<div class="empty-state">Loading approved drivers...</div>';
+            try {
+                const res = await fetch('/api/admin/approved-drivers');
+                if (!res.ok) throw new Error('Failed to fetch approved drivers');
+                const data = await res.json();
+                const apps = Array.isArray(data.applications) ? data.applications : [];
+
+                const approvedCountEl = document.getElementById('approvedDrivers');
+                if (approvedCountEl) approvedCountEl.textContent = apps.length;
+
+                if (apps.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><h3>No approved drivers</h3><p>No drivers have been approved yet.</p></div>';
+                    return;
+                }
+
+                container.innerHTML = '';
+                apps.forEach(app => {
+                    container.insertAdjacentHTML('beforeend', renderApprovedCard(app));
+                });
+            } catch (err) {
+                container.innerHTML = '<div class="empty-state"><h3>Error loading approved drivers</h3><p>' + (err.message || err) + '</p></div>';
+            }
+        }
+
+        function renderApprovedCard(app) {
+            const id = app.id || app._id || app.applicationId || 'unknown';
+            const name = escapeHtml(app.username || app.name || 'Unknown');
+            const email = escapeHtml(app.email || '');
+            const vehicle = escapeHtml((app.vehicle_make ? (app.vehicle_make + ' ' + (app.vehicle_model||'')) : app.vehicle) || 'Not provided');
+            const approvedAt = app.reviewed_at ? new Date(app.reviewed_at).toLocaleString() : (app.reviewedAt ? new Date(app.reviewedAt).toLocaleString() : 'Unknown');
+
+            return `
+                <div class="verification-card">
+                    <div class="verification-header">
+                        <div class="user-details">
+                            <h3>${name}</h3>
+                            <div class="detail-row"><span class="detail-label">Email:</span><span>${email}</span></div>
+                            <div class="detail-row"><span class="detail-label">Vehicle:</span><span>${vehicle}</span></div>
+                            <div class="detail-row"><span class="detail-label">Approved:</span><span>${approvedAt}</span></div>
+                        </div>
+                        <div>
+                            <span class="status-badge approved">Approved</span>
+                        </div>
+                    </div>
+                    <div class="verification-actions">
+                        <button class="view-btn" onclick="viewApproved('${app.user_id || app.userId || ''}')">View Profile</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // View approved driver's profile/app details
+        async function viewApproved(userId) {
+            if (!userId) return alert('User ID not available');
+            try {
+                const res = await fetch('/api/driver-application/' + encodeURIComponent(userId));
+                if (!res.ok) throw new Error('Failed to fetch application');
+                const data = await res.json();
+                const pretty = JSON.stringify(data, null, 2);
+                document.getElementById('modalTitle').textContent = 'Approved Driver Details';
+                document.getElementById('modalContent').textContent = pretty;
+                openModal();
+            } catch (err) {
+                alert('Failed to load profile: ' + (err.message || err));
             }
         }
 

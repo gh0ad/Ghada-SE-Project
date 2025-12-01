@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- test-save: inserted by assistant to verify file can be saved -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -339,6 +340,21 @@
             padding: 0 0.5rem;
         }
 
+        /* Captain / Driver ride card */
+        .ride-card {
+            background: white;
+            border: 1px solid #e6eef8;
+            border-radius: 10px;
+            padding: 12px;
+            box-shadow: 0 6px 18px rgba(2,6,23,0.04);
+            margin-bottom: 0.75rem;
+        }
+        .ride-card .ride-top {
+            display:flex; justify-content:space-between; align-items:center; gap:8px;
+        }
+        .ride-card .ride-meta { color:#475569; margin-top:6px; }
+        .ride-card .ride-actions { margin-top:10px; display:flex; gap:8px; }
+
         .chat-input-container {
             padding: 1rem;
             background: white;
@@ -664,7 +680,7 @@
         <div class="header-left">
             <div class="logo" id="appLogo" style="cursor:pointer">ō͡≡o</div>
             <div class="user-info">
-                <h2 id="welcomeUser">Welcome, User!</h2>
+                <h2 id="welcomeUser">Welcome!</h2>
                 <p id="userEmail">user@sm.imamu.edu.sa</p>
             </div>
         </div>
@@ -672,7 +688,7 @@
             <div class="nav-tabs">
                 <button class="nav-tab active" onclick="switchTab('home')">🏠 Home</button>
                 <button class="nav-tab" onclick="switchTab('announcements')">📢 Announcements</button>
-                <button class="nav-tab" id="driverTabBtn" onclick="switchTab('driver')">🚗 Driver Application</button>
+                <button class="nav-tab" id="driverTabBtn" onclick="switchTab('driver')">🧭 Captain</button>
                 <button class="nav-tab" onclick="switchTab('profile')">👤 Profile</button>
             </div>
             <button class="logout-btn" onclick="logout()">Logout</button>
@@ -823,10 +839,37 @@
 
     <!-- DRIVER APPLICATION TAB (Only for Students) -->
     <div id="driver" class="tab-content">
+        <div id="captainTopStatus" style="display:none; max-width:900px; margin:1rem auto 12px; padding:12px; border-radius:8px; border:1px solid #e2e8f0; background:#f8fafc;">
+            <strong>Application status:</strong> <span id="captainStatusText">-</span>
+            <div id="captainStatusReason" style="margin-top:6px; color:#92400e;"></div>
+        </div>
         <div class="driver-app-container">
+            <!-- Captain Controls shown after approval -->
+            <div id="driverControlsContainer" style="display:none; max-width:900px; margin:0 auto; padding:2rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                    <h3 style="margin:0; color:#1e40af;">🧭 Captain Controls</h3>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <div id="driverStatusBadge" style="font-weight:700; color:#065f46;">Inactive</div>
+                        <button class="submit-btn" id="toggleDriverAvailBtn" type="button">Go Online</button>
+                    </div>
+                </div>
+
+                <div id="driverActiveInfo" style="display:none; margin-bottom:1rem; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+                    <strong>Active Ride:</strong>
+                    <div id="driverActiveRideDetails">No active rides</div>
+                </div>
+
+                <h4 style="color:#1e40af;">Available Ride Requests</h4>
+                <div id="driverAvailableRides" style="margin-top:0.75rem;"></div>
+            </div>
+
             <div class="driver-app-form">
+                <div id="driverAppStatus" style="display:none; margin-bottom:12px; padding:12px; border-radius:8px; border:1px solid #e2e8f0; background:#f8fafc;">
+                    <strong>Application status:</strong> <span id="driverAppStatusText">-</span>
+                    <div id="driverAppReason" style="margin-top:6px; color:#92400e;"></div>
+                </div>
                 <div class="driver-info-box">
-                    <h3>🚗 Become a Driver</h3>
+                    <h3>🧭 Become a Captain</h3>
                     <p>Apply to become a driver and earn money by giving rides to other students. Your application will be reviewed by our admin team.</p>
                 </div>
 
@@ -967,9 +1010,15 @@
                 <h3 class="profile-form-title">Edit Profile</h3>
                 <div class="form-row">
                     <div class="form-group">
+                        <label for="profileFullName">Full Name</label>
+                        <input type="text" id="profileFullName" placeholder="Your full name" required>
+                    </div>
+                    <div class="form-group">
                         <label for="profileUsername">Username</label>
                         <input type="text" id="profileUsername" required>
                     </div>
+                </div>
+                <div class="form-row">
                     <div class="form-group">
                         <label for="profilePhone">Phone Number</label>
                         <input type="tel" id="profilePhone" required>
@@ -1009,29 +1058,36 @@
         let socket = io();
 
         // Listen for driver status updates (approved/rejected) from server
-        socket.on('driverStatusUpdated', (data) => {
+        socket.on('driverStatusUpdated', async (data) => {
+            console.log('socket.driverStatusUpdated received:', data);
             try {
                 // data: { applicationId, status, approved, reason, userId }
                 if (!data) return;
                 // If userData is available, ensure event is for this user
                 if (userData && data.userId && String(data.userId) !== String(userData.id)) return;
 
+                // Optimistically update local session so UI updates immediately
                 if (!userData) userData = {};
                 userData.driverStatus = data.status || (data.approved ? 'approved' : 'rejected');
                 userData.isActiveDriver = !!data.approved;
                 sessionStorage.setItem('userData', JSON.stringify(userData));
 
+                // Refresh authoritative user data from the server and update UI dynamically
+                await refreshUserData();
+
+                // after refresh, read latest session userData
+                const fresh = JSON.parse(sessionStorage.getItem('userData') || '{}');
                 const driverTabBtn = document.getElementById('driverTabBtn');
-                if (driverTabBtn) driverTabBtn.style.display = data.approved ? 'inline-block' : (userData.accountType === 'student' ? 'inline-block' : 'none');
+                if (driverTabBtn) {
+                    // show driver tab for students; indicate approval state
+                    driverTabBtn.style.display = (fresh.accountType === 'student') ? 'inline-block' : 'none';
+                    driverTabBtn.textContent = fresh.isActiveDriver ? '🚗 Driver (Approved)' : '🚗 Driver Application';
+                }
 
                 if (data.approved) {
-                    showNotification('Your driver application was approved. You can now offer and accept rides.', 'success', 2000);
-                    // small delay to let notification show, then reload to enable driver UI fully
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1800);
+                    showNotification('Your driver application was approved. You can now offer and accept rides.', 'success', 4000);
                 } else {
-                    showNotification('Your driver application was rejected.' + (data.reason ? '\nReason: ' + data.reason : ''), 'warn', 6000);
+                    showNotification('Your driver application was updated.' + (data.reason ? '\nReason: ' + data.reason : ''), data.approved ? 'success' : 'warn', 6000);
                 }
             } catch (e) {
                 console.warn('Error handling driverStatusUpdated:', e);
@@ -1053,7 +1109,17 @@
 
             // Show selected tab
             document.getElementById(tabName).classList.add('active');
-            event.target.classList.add('active');
+
+            // Mark the clicked nav button as active. Use document.activeElement as a safe fallback.
+            const activeBtn = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('nav-tab') ? document.activeElement : null;
+            if (activeBtn) activeBtn.classList.add('active');
+
+            // If opening the Captain (driver) tab, ensure application status is visible at top
+            if (tabName === 'driver') {
+                try { renderDriverTab(); updateDriverApplicationStatusUI(); } catch (e) { console.warn(e); }
+                // scroll the driver tab to top so the status banner is visible
+                const el = document.getElementById('driver'); if (el) el.scrollTop = 0;
+            }
         }
 
         // Load User Data
@@ -1066,7 +1132,7 @@
             userData = JSON.parse(userDataStr);
             
             // Update header
-            document.getElementById('welcomeUser').textContent = `Welcome, ${userData.username}!`;
+            document.getElementById('welcomeUser').textContent = `Welcome, ${userData.full_name || userData.fullName || userData.username}!`;
             document.getElementById('userEmail').textContent = userData.email;
 
             // Hide driver tab for faculty/drivers
@@ -1076,9 +1142,11 @@
             }
 
             // Update profile page
-            document.getElementById('profileName').textContent = userData.username;
+            document.getElementById('profileName').textContent = userData.full_name || userData.fullName || userData.username;
             document.getElementById('profileEmail').textContent = userData.email;
             document.getElementById('profileUsername').value = userData.username;
+            // Prefill the new full name field if present
+            const pf = document.getElementById('profileFullName'); if (pf) pf.value = userData.full_name || userData.fullName || '';
             document.getElementById('profilePhone').value = userData.phone || '';
             document.getElementById('profileUniversity').value = userData.university;
             document.getElementById('profileMajor').value = userData.major || '';
@@ -1105,6 +1173,8 @@
             try {
                 if (socket && socket.emit && userData && userData.id) {
                     socket.emit('authenticate', userData.id);
+                    // join a per-user room so server can target room emits without strict auth
+                    socket.emit('joinUserRoom', userData.id);
                 }
             } catch (e) {
                 console.warn('Failed to authenticate socket:', e);
@@ -1118,8 +1188,12 @@
             // Initialize map
             initializeMap();
 
-            // Authenticate socket
-            socket.emit('authenticate', userData.id);
+            // Refresh authoritative user state (driver application status, approval)
+            refreshUserData().then(() => {
+                try { renderDriverTab(); updateDriverApplicationStatusUI(); } catch (e) { console.warn(e); }
+            });
+
+            // Socket already authenticated above; no duplicate emit here
             // Payment UI hooks
             const pmEl = document.getElementById('paymentMethod');
             const payBtn = document.getElementById('payNowBtn');
@@ -1139,6 +1213,272 @@
             const logoEl = document.getElementById('appLogo');
             if (logoEl) logoEl.addEventListener('click', () => { window.location.href = '/index.html'; });
         };
+
+        // Refresh user data from server and update session + simple UI fields
+        async function refreshUserData() {
+            try {
+                let u = null;
+                // Try authenticated endpoint first
+                try {
+                    const token = sessionStorage.getItem('authToken');
+                    if (token) {
+                        const res = await fetch('/api/users/me', {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        if (res.ok) {
+                            u = await res.json();
+                        } else {
+                            console.warn('/api/users/me returned', res.status);
+                        }
+                    } else {
+                        console.warn('No authToken in sessionStorage; skipping /api/users/me');
+                    }
+                } catch (err) {
+                    console.warn('Error fetching /api/users/me', err);
+                }
+
+                // Fallback: if authenticated endpoint didn't return data, try public driver-application endpoint
+                if (!u && userData && userData.id) {
+                    try {
+                        const appRes = await fetch('/api/driver-application/' + encodeURIComponent(userData.id));
+                        if (appRes.ok) {
+                            const appJson = await appRes.json();
+                            if (appJson && appJson.hasApplication) {
+                                const app = appJson.application;
+                                u = {
+                                    id: userData.id,
+                                    username: userData.username,
+                                    email: userData.email,
+                                    accountType: userData.accountType,
+                                    driverStatus: app.status,
+                                    isActiveDriver: !!app.is_active_driver || app.status === 'approved'
+                                };
+                            }
+                        } else {
+                            console.warn('/api/driver-application returned', appRes.status);
+                        }
+                    } catch (err) {
+                        console.warn('Error fetching /api/driver-application fallback', err);
+                    }
+                }
+
+                if (!u) return;
+
+                // merge minimally with existing session userData
+                const base = JSON.parse(sessionStorage.getItem('userData') || '{}');
+                const merged = Object.assign({}, base, u);
+                sessionStorage.setItem('userData', JSON.stringify(merged));
+
+                userData = merged;
+                // update header + profile snippets
+                const welcome = document.getElementById('welcomeUser');
+                if (welcome && userData.username) welcome.textContent = `Welcome, ${userData.username}!`;
+                const profileName = document.getElementById('profileName');
+                if (profileName && userData.username) profileName.textContent = userData.username;
+                const profileEmail = document.getElementById('profileEmail');
+                if (profileEmail && userData.email) profileEmail.textContent = userData.email;
+
+                // update driver tab button text/visibility
+                const driverTabBtn = document.getElementById('driverTabBtn');
+                if (driverTabBtn) {
+                    driverTabBtn.style.display = (userData.accountType === 'student') ? 'inline-block' : 'none';
+                    // Keep the tab label static — do not append status text here.
+                    driverTabBtn.textContent = '🧭 Captain';
+                }
+                // render driver tab appropriately
+                renderDriverTab();
+                // update driver application status UI if present
+                updateDriverApplicationStatusUI();
+            } catch (err) {
+                console.warn('refreshUserData error', err);
+            }
+        }
+
+        function updateDriverApplicationStatusUI() {
+            try {
+                const statusBox = document.getElementById('driverAppStatus');
+                const statusText = document.getElementById('driverAppStatusText');
+                const reasonEl = document.getElementById('driverAppReason');
+                if (!statusBox || !statusText) return;
+
+                if (userData && (userData.driverStatus || userData.driverAppId)) {
+                    const s = userData.driverStatus || (userData.isActiveDriver ? 'approved' : 'pending');
+                    statusBox.style.display = 'block';
+                    // also update the top persistent captain status banner
+                    const topBanner = document.getElementById('captainTopStatus');
+                    const topText = document.getElementById('captainStatusText');
+                    const topReason = document.getElementById('captainStatusReason');
+                    if (topBanner && topText) topBanner.style.display = 'block';
+
+                    if (s === 'pending') {
+                        statusText.textContent = 'Pending review';
+                        statusBox.style.borderColor = '#f59e0b';
+                        statusBox.style.background = '#fffbeb';
+                        reasonEl.textContent = '';
+                        if (topText) topText.textContent = 'Pending review';
+                        if (topBanner) { topBanner.style.borderColor = '#f59e0b'; topBanner.style.background = '#fffbeb'; }
+                        if (topReason) topReason.textContent = '';
+                    } else if (s === 'approved') {
+                        statusText.textContent = 'Approved — you can now offer/accept rides';
+                        statusBox.style.borderColor = '#10b981';
+                        statusBox.style.background = '#ecfdf5';
+                        reasonEl.textContent = '';
+                        if (topText) topText.textContent = 'Approved — Active Captain';
+                        if (topBanner) { topBanner.style.borderColor = '#10b981'; topBanner.style.background = '#ecfdf5'; }
+                        if (topReason) topReason.textContent = '';
+                    } else if (s === 'rejected') {
+                        statusText.textContent = 'Rejected';
+                        statusBox.style.borderColor = '#ef4444';
+                        statusBox.style.background = '#fff1f2';
+                        // show reason if available
+                        reasonEl.textContent = userData.rejection_reason || userData.driverRejectionReason || '';
+                        if (topText) topText.textContent = 'Rejected';
+                        if (topBanner) { topBanner.style.borderColor = '#ef4444'; topBanner.style.background = '#fff1f2'; }
+                        if (topReason) topReason.textContent = reasonEl.textContent;
+                    } else {
+                        statusText.textContent = s;
+                        reasonEl.textContent = '';
+                        if (topText) topText.textContent = s;
+                    }
+                } else {
+                    statusBox.style.display = 'none';
+                    const topBanner = document.getElementById('captainTopStatus');
+                    if (topBanner) topBanner.style.display = 'none';
+                }
+            } catch (e) {
+                console.warn('updateDriverApplicationStatusUI error', e);
+            }
+        }
+
+        // Render driver tab UI depending on approval status
+        function renderDriverTab() {
+            const appContainer = document.querySelector('.driver-app-form');
+            const controls = document.getElementById('driverControlsContainer');
+            const toggleBtn = document.getElementById('toggleDriverAvailBtn');
+            const statusBadge = document.getElementById('driverStatusBadge');
+
+            if (!controls || !appContainer) return;
+
+            const isDriver = userData && userData.isActiveDriver;
+            const hasApp = userData && (userData.driverStatus || userData.driverAppId);
+            const status = (userData && userData.driverStatus) || null;
+            if (isDriver) {
+                // hide application form, show controls
+                appContainer.style.display = 'none';
+                controls.style.display = 'block';
+                statusBadge.textContent = userData.isOnline ? 'Online' : 'Offline';
+                toggleBtn.textContent = userData.isOnline ? 'Go Offline' : 'Go Online';
+                // wire toggle
+                toggleBtn.onclick = toggleDriverAvailabilityFromStudent;
+                // load available rides
+                loadAvailableRidesForDriver();
+            } else if (hasApp && status === 'pending') {
+                // application pending: hide form (already applied) and show status only
+                appContainer.style.display = 'block';
+                controls.style.display = 'none';
+                // keep form visually present but disabled to prevent duplicate submits
+                Array.from(appContainer.querySelectorAll('input,select,button,textarea')).forEach(el => el.disabled = true);
+            } else {
+                // no application or rejected: allow applying (re-enable form controls)
+                appContainer.style.display = 'block';
+                controls.style.display = 'none';
+                Array.from(appContainer.querySelectorAll('input,select,button,textarea')).forEach(el => el.disabled = false);
+            }
+        }
+
+        // Toggle driver availability (student acting as approved driver)
+        let driverIsAvailable = false;
+        function toggleDriverAvailabilityFromStudent() {
+            if (!userData || !userData.id) return alert('No user data');
+            const btn = document.getElementById('toggleDriverAvailBtn');
+            const statusBadge = document.getElementById('driverStatusBadge');
+            driverIsAvailable = !driverIsAvailable;
+            if (driverIsAvailable) {
+                btn.textContent = 'Go Offline';
+                statusBadge.textContent = 'Online';
+                // inform server
+                const loc = (navigator.geolocation) ? { lat: (userLocation||{}).lat, lng: (userLocation||{}).lng } : null;
+                socket.emit('driverOnline', { driverId: userData.id, location: loc });
+                loadAvailableRidesForDriver();
+            } else {
+                btn.textContent = 'Go Online';
+                statusBadge.textContent = 'Offline';
+                socket.emit('driverOffline', userData.id);
+                document.getElementById('driverAvailableRides').innerHTML = '<div style="color:#64748b; padding:1rem;">You are offline. Go online to see ride requests.</div>';
+            }
+        }
+
+        // Load available rides and render them for the approved driver
+        async function loadAvailableRidesForDriver() {
+            const container = document.getElementById('driverAvailableRides');
+            if (!container) return;
+            container.innerHTML = '<div style="color:#64748b; padding:1rem;">Loading...</div>';
+            try {
+                const res = await fetch('/api/rides/available');
+                if (!res.ok) { container.innerHTML = '<div style="color:#dc2626;">Failed to load rides</div>'; return; }
+                const d = await res.json();
+                const rides = d.rides || [];
+                if (rides.length === 0) {
+                    container.innerHTML = '<div style="color:#64748b; padding:1rem;">No ride requests at the moment.</div>';
+                    return;
+                }
+                container.innerHTML = '';
+                rides.forEach(r => {
+                    const el = document.createElement('div');
+                    el.className = 'ride-card';
+                    el.innerHTML = `
+                        <div class="ride-top">
+                            <div><strong>${r.student_name || 'Student'}</strong> • ${r.student_id || ''}</div>
+                            <div style="font-weight:700; color:#065f46">SAR ${ (r.fare||0).toFixed ? r.fare.toFixed(2) : r.fare }</div>
+                        </div>
+                        <div class="ride-meta">Pickup: ${r.pickup_location}</div>
+                        <div class="ride-meta">Destination: ${r.destination_location}</div>
+                        <div class="ride-actions">
+                            <button class="accept-btn" onclick="acceptRideAsDriver(${r.id})">Accept</button>
+                            <button class="decline-btn" onclick="declineRideAsDriver(${r.id})">Decline</button>
+                        </div>
+                    `;
+                    container.appendChild(el);
+                });
+            } catch (err) {
+                console.error('loadAvailableRidesForDriver error', err);
+                container.innerHTML = '<div style="color:#dc2626;">Network error loading rides</div>';
+            }
+        }
+
+        async function acceptRideAsDriver(rideId) {
+            if (!userData || !userData.id) return alert('User not available');
+            try {
+                const res = await fetch(`/api/rides/${rideId}/accept`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ driverId: userData.id })
+                });
+                const data = await res.json();
+                if (!res.ok) return alert('Failed to accept ride: ' + (data.error || 'Unknown'));
+
+                // Show active ride info
+                const activeBox = document.getElementById('driverActiveInfo');
+                const details = document.getElementById('driverActiveRideDetails');
+                activeBox.style.display = 'block';
+                details.innerHTML = `Passenger: ${data.ride.student_name || ''} <br> Pickup: ${data.ride.pickup_location} <br> Destination: ${data.ride.destination_location}`;
+
+                // Emit acceptance to server for real-time notification
+                socket.emit('acceptRide', { rideId: data.ride.id, driverId: userData.id });
+
+                // Refresh available rides
+                loadAvailableRidesForDriver();
+            } catch (err) {
+                console.error('acceptRideAsDriver error', err);
+                alert('Network error while accepting ride');
+            }
+        }
+
+        function declineRideAsDriver(id) {
+            // simple UI feedback for decline
+            showNotification('You declined the ride.');
+            loadAvailableRidesForDriver();
+        }
 
         // Initialize Map
         function initializeMap() {
@@ -1439,22 +1779,34 @@
                 };
                 reader.readAsDataURL(file);
 
-                // upload to server
+                // upload to server by sending a data URL to the existing profile update endpoint
                 try {
-                    const fd = new FormData(); fd.append('avatar', file);
-                    const res = await fetch('/api/users/avatar', {
+                    // wait for reader to finish (reader.onload already set above and will set userData.avatar)
+                    await new Promise((resolve) => {
+                        const check = () => { if (userData && userData.avatar) return resolve(); setTimeout(check, 50); };
+                        check();
+                    });
+
+                    const token = sessionStorage.getItem('authToken');
+                    const res = await fetch('/api/users/update', {
                         method: 'POST',
-                        headers: { 'Authorization': `Bearer ${sessionStorage.getItem('authToken')}` },
-                        body: fd
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ avatar: userData.avatar })
                     });
                     if (res.ok) {
                         const d = await res.json();
-                        // expect { url: '<avatar-url>' }
-                        if (d.url) {
-                            userData.avatar = d.url; sessionStorage.setItem('userData', JSON.stringify(userData));
+                        // server returns updated user; update session storage if avatar url returned
+                        if (d && d.user && d.user.avatar) {
+                            userData.avatar = d.user.avatar;
+                            sessionStorage.setItem('userData', JSON.stringify(userData));
                         }
                         alert('Avatar uploaded');
                     } else {
+                        const errText = await res.text().catch(()=>null);
+                        console.warn('Avatar upload failed:', res.status, errText);
                         alert('Avatar upload failed');
                     }
                 } catch (err) {
@@ -1694,8 +2046,19 @@
                 if (response.ok) {
                     showNotification('Driver application submitted. Admin will review it soon.', 'info', 5000);
                     e.target.reset();
+                    // update local UI to indicate pending state and refresh authoritative user data
+                    try { await refreshUserData(); } catch (e) { console.warn('refresh after submit failed', e); }
+                    const driverTabBtn = document.getElementById('driverTabBtn');
+                    if (driverTabBtn) driverTabBtn.textContent = '🚗 Driver (Pending)';
                 } else {
-                    showNotification('Failed to submit application', 'warn', 5000);
+                    let errText = 'Failed to submit application';
+                    try {
+                        const errJson = await response.json();
+                        if (errJson && errJson.error) errText = errJson.error;
+                    } catch (e) { /* ignore */ }
+                    showNotification(errText, 'warn', 6000);
+                    // try to refresh authoritative state (maybe user already has an app)
+                    try { await refreshUserData(); } catch (e) { console.warn('refresh after failed submit', e); }
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -1705,6 +2068,7 @@
 
         // Profile
         function saveProfile() {
+            const fullName = (document.getElementById('profileFullName') && document.getElementById('profileFullName').value) || '';
             const username = document.getElementById('profileUsername').value;
             const phone = document.getElementById('profilePhone').value;
             const major = document.getElementById('profileMajor').value;
@@ -1717,12 +2081,44 @@
 
             if (!gender) { alert('Please select your gender before saving. Gender is required to request rides.'); return; }
 
-            alert('✅ Profile updated successfully!');
-            userData.username = username;
-            userData.phone = phone;
-            userData.major = major;
-            userData.gender = gender;
-            sessionStorage.setItem('userData', JSON.stringify(userData));
+            // Send update to server (requires authToken set in sessionStorage)
+            (async () => {
+                try {
+                    const token = sessionStorage.getItem('authToken');
+                    const res = await fetch('/api/users/update', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': token ? `Bearer ${token}` : ''
+                        },
+                        body: JSON.stringify({ username, phone, major, gender, fullName })
+                    });
+
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        const err = data.error || data.message || 'Failed to save profile';
+                        alert('Error: ' + err);
+                        return;
+                    }
+
+                    // Update local session state with authoritative server response
+                    const updated = data.user || { username, phone, major, gender, fullName };
+                    userData.username = updated.username || username;
+                    userData.full_name = updated.full_name || updated.fullName || fullName || userData.full_name;
+                    userData.phone = updated.phone || phone;
+                    userData.major = updated.major || major;
+                    userData.gender = updated.gender || gender;
+                    sessionStorage.setItem('userData', JSON.stringify(userData));
+
+                    showNotification('✅ Profile saved', 'success', 3000);
+                    // refresh header values
+                    const welcome = document.getElementById('welcomeUser'); if (welcome) welcome.textContent = `Welcome, ${userData.full_name || userData.fullName || userData.username}!`;
+                    const profileName = document.getElementById('profileName'); if (profileName) profileName.textContent = userData.username;
+                } catch (err) {
+                    console.error('saveProfile network error', err);
+                    alert('Network error while saving profile');
+                }
+            })();
         }
 
         function logout() {
@@ -1767,6 +2163,11 @@
         socket.on('rideAccepted', (data) => {
             document.getElementById('driverName').textContent = data.driverName;
             addChatMessage('Driver accepted your ride!', 'received', 'System');
+        });
+
+        // When any driverStatusUpdated comes in, re-render driver tab (refreshUserData already called in handler)
+        socket.on('driverStatusUpdated', (d) => {
+            try { renderDriverTab(); } catch (e) {}
         });
     </script>
 </body>
