@@ -13,22 +13,51 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            /* Fallback gradient if no image provided */
             background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Background image layer. Drop your image at `public/assets/signup-bg.jpg` to use it. */
+        body::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: url('/assets/signup-bg.jpg');
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            opacity: 0.18;
+            z-index: 0;
+        }
+
+        body::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            /* Themed blue overlay matching the site's gradient */
+            background: rgba(37, 99, 235, 0.32); /* #2563eb */
+            z-index: 0;
+            mix-blend-mode: multiply;
         }
 
         .signup-container {
-            background: white;
+            background: rgba(255,255,255,0.98);
             border-radius: 30px;
             box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
             width: 100%;
             max-width: 550px;
             padding: 3rem 2.5rem;
             animation: slideUp 0.6s ease-out;
+            position: relative;
+            z-index: 1;
+            backdrop-filter: blur(4px);
         }
 
         @keyframes slideUp {

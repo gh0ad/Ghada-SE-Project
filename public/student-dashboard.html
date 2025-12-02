@@ -701,6 +701,7 @@
             <!-- Request Panel -->
             <div class="request-panel">
                 <h2 class="panel-title">🎫 Book a Ride</h2>
+                <button id="emergencyBtn" class="request-btn" style="background:#ef4444; margin-top:8px;">⚠️ Emergency</button>
 
                 <div class="ride-form">
                     <div class="form-group">
@@ -768,6 +769,20 @@
                             <div class="info-row">
                                 <span>💰 Fare:</span>
                                 <span id="rideFare">-</span>
+                            </div>
+                        </div>
+                        <div id="passengerReviewBox" style="display:none; margin-top:12px; border-top:1px dashed #e2e8f0; padding-top:12px;">
+                            <strong>Rate your Captain</strong>
+                            <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+                                <select id="passengerRatingSelect">
+                                    <option value="5">5 — Excellent</option>
+                                    <option value="4">4 — Good</option>
+                                    <option value="3">3 — Okay</option>
+                                    <option value="2">2 — Poor</option>
+                                    <option value="1">1 — Terrible</option>
+                                </select>
+                                <input id="passengerReviewInput" placeholder="Short comment (optional)" style="flex:1;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+                                <button class="submit-btn" id="submitPassengerReviewBtn" onclick="submitPassengerReview()">Send</button>
                             </div>
                         </div>
                     </div>
@@ -850,7 +865,8 @@
                     <h3 style="margin:0; color:#1e40af;">🧭 Captain Controls</h3>
                     <div style="display:flex; gap:8px; align-items:center;">
                         <div id="driverStatusBadge" style="font-weight:700; color:#065f46;">Inactive</div>
-                        <button class="submit-btn" id="toggleDriverAvailBtn" type="button">Go Online</button>
+                            <button class="submit-btn" id="toggleDriverAvailBtn" type="button">Go Online</button>
+                            <button class="submit-btn" id="offerFromMapBtn" type="button" style="background:#f97316;">Offer Ride From Map</button>
                     </div>
                 </div>
 
@@ -858,6 +874,28 @@
                     <strong>Active Ride:</strong>
                     <div id="driverActiveRideDetails">No active rides</div>
                 </div>
+                <div id="driverReviewBox" style="display:none; margin-bottom:1rem; border-top:1px dashed #e2e8f0; padding-top:12px;">
+                    <strong>Rate your Passenger</strong>
+                    <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+                        <select id="driverRatingSelect">
+                            <option value="5">5 — Excellent</option>
+                            <option value="4">4 — Good</option>
+                            <option value="3">3 — Okay</option>
+                            <option value="2">2 — Poor</option>
+                            <option value="1">1 — Terrible</option>
+                        </select>
+                        <input id="driverReviewInput" placeholder="Short comment (optional)" style="flex:1;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+                        <button class="submit-btn" id="submitDriverReviewBtn" onclick="submitDriverReview()">Send</button>
+                    </div>
+                </div>
+
+                <div id="myOfferBox" style="display:none; margin-bottom:1rem; padding:10px; border-radius:8px; border:1px dashed #e2e8f0; background:#fff7ed;">
+                    <strong>Your current offer:</strong>
+                    <div id="myOfferText" style="margin-top:6px; color:#92400e;">-</div>
+                    <div style="margin-top:8px;"><button class="submit-btn" style="background:#ef4444;" onclick="cancelMyOffer()">Cancel Offer</button></div>
+                </div>
+
+                <div id="driverOffersList" style="margin-top:0.75rem;"></div>
 
                 <h4 style="color:#1e40af;">Available Ride Requests</h4>
                 <div id="driverAvailableRides" style="margin-top:0.75rem;"></div>
@@ -1050,6 +1088,34 @@
         </div>
     </div>
 
+            <!-- Support Tickets Section -->
+            <div id="ticketsBox" class="section" style="max-width:900px; margin: 1rem auto; background: white; padding: 1.25rem; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.06);">
+                <h3 class="section-title">📝 Support & Tickets</h3>
+                <p style="color:#64748b;">Create a ticket for account, payments, safety, or other issues. Admins will review and reply.</p>
+                <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                    <select id="ticketType" style="padding:8px; border:1px solid #e2e8f0; border-radius:6px; min-width:180px;">
+                        <option value="general">General</option>
+                        <option value="account">Account</option>
+                        <option value="payment">Payment</option>
+                        <option value="safety">Safety</option>
+                        <option value="driver_application">Driver Application</option>
+                        <option value="other">Other</option>
+                    </select>
+                    <input id="ticketSubject" placeholder="Subject" style="flex:1;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+                </div>
+                <div style="margin-top:8px;">
+                    <textarea id="ticketBody" placeholder="Describe the issue..." style="width:100%; min-height:100px; padding:8px; border:1px solid #e2e8f0; border-radius:6px;"></textarea>
+                </div>
+                <div style="display:flex; gap:8px; margin-top:8px;">
+                    <button class="submit-btn" id="submitTicketBtn" onclick="submitTicket()">Submit Ticket</button>
+                    <div style="color:#64748b; align-self:center;">You can view ticket status below.</div>
+                </div>
+
+                <div id="userTicketsList" style="margin-top:12px;">
+                    <div style="color:#64748b;">Loading your tickets...</div>
+                </div>
+            </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
@@ -1096,6 +1162,128 @@
         let currentRide = null;
         let userLocation = null;
         let map, userMarker, driverMarker, routeLine;
+        // Markers for driver offers published by other drivers: Map<driverId, L.marker>
+        let offeredDriverMarkers = new Map();
+        // My current offer (if I'm an approved driver)
+        let myOffer = null;
+
+        // Listen for driver offering events so passengers see nearby offers
+        socket.on('driverOffering', (data) => {
+            try {
+                // data: { driverId, location:{lat,lng}, note, fare, name, avatar }
+                if (!data || !data.driverId || !data.location) return;
+                // If it's me, ignore (my own UI handled locally)
+                if (userData && String(userData.id) === String(data.driverId)) return;
+
+                // Add or update marker for this offered driver
+                const existing = offeredDriverMarkers.get(data.driverId);
+                const lat = data.location.lat, lng = data.location.lng;
+                if (existing && existing.setLatLng) {
+                    existing.setLatLng([lat, lng]);
+                } else if (map) {
+                    const iconHtml = (data.avatar && (data.avatar.startsWith('data:') || data.avatar.startsWith('http'))) ? `<img src="${data.avatar}" style="width:36px;height:36px;border-radius:50%;"/>` : (data.avatar || '🚗');
+                    const icon = L.divIcon({ html: iconHtml, className: 'driver-offer-marker', iconSize: [36,36] });
+                    const m = L.marker([lat, lng], { icon }).addTo(map);
+                    m.bindPopup(`<strong>${data.name||'Captain'}</strong><br>${data.note||''}${data.fare?('<br>SAR '+data.fare):''}`);
+                    offeredDriverMarkers.set(data.driverId, m);
+                }
+                showNotification(`${data.name || 'A captain'} is offering a ride nearby.`, 'info', 5000);
+            } catch (e) { console.warn('driverOffering handler error', e); }
+        });
+
+        // Listen for review notifications targeted to this user
+        socket.on('reviewSubmitted', (payload) => {
+            try {
+                const rev = payload && payload.review ? payload.review : payload;
+                if (!rev) return;
+                // If this user is the target, notify them
+                if (userData && String(userData.id) === String(rev.target_id)) {
+                    showNotification('You received a new review.', 'info', 6000);
+                }
+            } catch (e) { console.warn('reviewSubmitted handler error', e); }
+        });
+
+        // When a ride is accepted, update passenger UI and enable chat
+        socket.on('rideAccepted', (payload) => {
+            try {
+                const ride = payload && payload.ride ? payload.ride : payload;
+                if (!ride) return;
+
+                // If I'm the passenger for this ride
+                if (userData && String(userData.id) === String(ride.student_id)) {
+                    currentRide = ride;
+                    // Update active ride UI
+                    const pickupEl = document.getElementById('activePickup');
+                    const destEl = document.getElementById('activeDestination');
+                    const driverEl = document.getElementById('driverName');
+                    const fareEl = document.getElementById('rideFare');
+                    if (pickupEl) pickupEl.textContent = ride.pickup_location || (ride.pickup_location || '-');
+                    if (destEl) destEl.textContent = ride.destination_location || (ride.destination_location || '-');
+                    if (driverEl) driverEl.textContent = ride.driver_name || (ride.driver_name || 'Driver');
+                    if (fareEl) fareEl.textContent = ride.fare ? ('SAR ' + Number(ride.fare).toFixed(2)) : '-';
+                    const activeBox = document.getElementById('activeRideSection'); if (activeBox) activeBox.style.display = 'block';
+
+                    // Enable chat UI
+                    const chatInput = document.getElementById('chatInput');
+                    const sendBtn = document.querySelector('.send-btn');
+                    if (chatInput) { chatInput.disabled = false; chatInput.focus(); }
+                    if (sendBtn) sendBtn.disabled = false;
+
+                    // Estimate ETA (simple heuristic). If both locations available and we have userLocation, compute distance
+                    let etaText = 'Arriving soon';
+                    try {
+                        if (ride.pickup_lat && ride.pickup_lng && userLocation && userLocation.lat) {
+                            // compute approximate distance (haversine)
+                            const toRad = (v) => v * Math.PI / 180;
+                            const R = 6371;
+                            const dLat = toRad(ride.pickup_lat - (userLocation.lat || 0));
+                            const dLon = toRad(ride.pickup_lng - (userLocation.lng || 0));
+                            const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(toRad(userLocation.lat||0))*Math.cos(toRad(ride.pickup_lat))*Math.sin(dLon/2)*Math.sin(dLon/2);
+                            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                            const distKm = R * c;
+                            const speedKmh = 30; // conservative
+                            const mins = Math.max(1, Math.round((distKm / speedKmh) * 60));
+                            etaText = `ETA ~${mins} min`;
+                        } else {
+                            etaText = 'ETA ~8 min';
+                        }
+                    } catch (e) { etaText = 'ETA ~8 min'; }
+
+                    showNotification(`Captain ${ride.driver_name || 'assigned'} accepted your ride. Fare: ${ride.fare ? ('SAR '+Number(ride.fare).toFixed(2)) : 'TBD'}. ${etaText}`, 'success', 8000);
+                }
+
+                // If I'm the driver, update driver active UI
+                if (userData && String(userData.id) === String(ride.driver_id)) {
+                    currentRide = ride;
+                    const driverActiveBox = document.getElementById('driverActiveInfo');
+                    const details = document.getElementById('driverActiveRideDetails');
+                    if (driverActiveBox) driverActiveBox.style.display = 'block';
+                    if (details) details.textContent = `Ride #${ride.id} — Pickup: ${ride.pickup_location || '-'} → ${ride.destination_location || '-'} — Fare: ${ride.fare ? ('SAR '+Number(ride.fare).toFixed(2)) : 'TBD'}`;
+                }
+            } catch (e) { console.warn('rideAccepted handler error', e); }
+        });
+
+        socket.on('driverOfferRemoved', (data) => {
+            try {
+                const driverId = data && data.driverId ? data.driverId : data;
+                if (!driverId) return;
+                const m = offeredDriverMarkers.get(driverId);
+                if (m) { try { map.removeLayer(m); } catch (e) {} offeredDriverMarkers.delete(driverId); }
+                // If it was my own offer being removed, clear myOffer UI
+                if (userData && String(userData.id) === String(driverId)) {
+                    myOffer = null;
+                    const box = document.getElementById('myOfferBox'); if (box) box.style.display = 'none';
+                }
+            } catch (e) { console.warn('driverOfferRemoved handler error', e); }
+        });
+
+        // When joining, server may send all active offers
+        socket.on('activeDriverOffers', (payload) => {
+            try {
+                const offers = (payload && payload.offers) ? payload.offers : [];
+                offers.forEach(o => socket.emit('driverOffering', o));
+            } catch (e) { console.warn('activeDriverOffers handler error', e); }
+        });
 
         // Tab Switching
         function switchTab(tabName) {
@@ -1120,6 +1308,16 @@
                 // scroll the driver tab to top so the status banner is visible
                 const el = document.getElementById('driver'); if (el) el.scrollTop = 0;
             }
+            // If opening Profile tab, load tickets and refresh user data
+            if (tabName === 'profile') {
+                try { refreshUserData(); } catch (e) { console.warn('refreshUserData on profile open failed', e); }
+                try { loadUserTickets(); } catch (e) { console.warn('loadUserTickets on profile open failed', e); }
+            }
+            // Show tickets box only on Profile tab
+            try {
+                const ticketsBox = document.getElementById('ticketsBox');
+                if (ticketsBox) ticketsBox.style.display = (tabName === 'profile') ? 'block' : 'none';
+            } catch (e) { console.warn('Could not toggle tickets box', e); }
         }
 
         // Load User Data
@@ -1130,6 +1328,12 @@
                 return;
             }
             userData = JSON.parse(userDataStr);
+            // Ensure tickets box visibility matches current active tab on initial load
+            try {
+                const ticketsBox = document.getElementById('ticketsBox');
+                const profileTab = document.getElementById('profile');
+                if (ticketsBox) ticketsBox.style.display = (profileTab && profileTab.classList.contains('active')) ? 'block' : 'none';
+            } catch (e) { console.warn('Could not initialize tickets box visibility', e); }
             
             // Update header
             document.getElementById('welcomeUser').textContent = `Welcome, ${userData.full_name || userData.fullName || userData.username}!`;
@@ -1181,7 +1385,7 @@
             }
 
             // Update driver form (pre-fill known info)
-            document.getElementById('driverNameInput').value = userData.username;
+            document.getElementById('driverNameInput').value = userData.full_name || userData.fullName || userData.username;
             document.getElementById('driverEmailInput').value = userData.email;
             document.getElementById('driverPhoneInput').value = userData.phone || '';
 
@@ -1209,6 +1413,14 @@
             if (topupBtn) topupBtn.addEventListener('click', topUpWallet);
             // avatar controls
             setupAvatarControls();
+            // load user's tickets only when Profile tab is opened
+            // (will be triggered by switchTab on demand)
+            // offer-from-map button wiring (for approved drivers)
+            const offerBtn = document.getElementById('offerFromMapBtn');
+            if (offerBtn) offerBtn.addEventListener('click', () => togglePickMode('offer'));
+            // emergency button wiring
+            const emBtn = document.getElementById('emergencyBtn');
+            if (emBtn) emBtn.addEventListener('click', triggerEmergency);
             // header logo click -> go to public homepage
             const logoEl = document.getElementById('appLogo');
             if (logoEl) logoEl.addEventListener('click', () => { window.location.href = '/index.html'; });
@@ -1248,6 +1460,7 @@
                                 u = {
                                     id: userData.id,
                                     username: userData.username,
+                                    full_name: userData.full_name || userData.fullName || userData.username,
                                     email: userData.email,
                                     accountType: userData.accountType,
                                     driverStatus: app.status,
@@ -1272,9 +1485,9 @@
                 userData = merged;
                 // update header + profile snippets
                 const welcome = document.getElementById('welcomeUser');
-                if (welcome && userData.username) welcome.textContent = `Welcome, ${userData.username}!`;
+                if (welcome) welcome.textContent = `Welcome, ${userData.full_name || userData.fullName || userData.username}!`;
                 const profileName = document.getElementById('profileName');
-                if (profileName && userData.username) profileName.textContent = userData.username;
+                if (profileName) profileName.textContent = userData.full_name || userData.fullName || userData.username;
                 const profileEmail = document.getElementById('profileEmail');
                 if (profileEmail && userData.email) profileEmail.textContent = userData.email;
 
@@ -1408,6 +1621,135 @@
             }
         }
 
+        // Create an offer at a chosen location (driver action)
+        function createOfferAt(lat, lng) {
+            if (!userData || !userData.id || !userData.isActiveDriver) return alert('You must be an approved active captain to offer rides.');
+            const payload = {
+                driverId: userData.id,
+                location: { lat, lng },
+                note: 'Offering a ride from here',
+                fare: fareEstimate || null,
+                name: userData.full_name || userData.username || null,
+                avatar: userData.avatar || null
+            };
+            // store locally and emit
+            myOffer = payload;
+            socket.emit('offerRide', payload);
+
+            // show my offer UI
+            const box = document.getElementById('myOfferBox'); if (box) box.style.display = 'block';
+            const text = document.getElementById('myOfferText'); if (text) text.textContent = `Location: ${lat.toFixed(5)}, ${lng.toFixed(5)} — Fare: ${payload.fare ? 'SAR '+payload.fare : 'TBD'}`;
+
+            // add a marker for my offer
+            try {
+                const iconHtml = (payload.avatar && (payload.avatar.startsWith('data:') || payload.avatar.startsWith('http'))) ? `<img src="${payload.avatar}" style="width:40px;height:40px;border-radius:50%;"/>` : (payload.avatar || '🧭');
+                const icon = L.divIcon({ html: iconHtml, className: 'my-offer-marker', iconSize: [40,40] });
+                const m = L.marker([lat, lng], { icon }).addTo(map);
+                m.bindPopup(`<strong>Your Offer</strong><br>${payload.note || ''}`);
+                // keep in offeredDriverMarkers so removal logic is unified
+                offeredDriverMarkers.set(userData.id, m);
+            } catch (e) { console.warn('Error rendering my offer marker', e); }
+        }
+
+        function cancelMyOffer() {
+            if (!userData || !userData.id) return;
+            socket.emit('cancelOffer', { driverId: userData.id });
+            myOffer = null;
+            const box = document.getElementById('myOfferBox'); if (box) box.style.display = 'none';
+            const m = offeredDriverMarkers.get(userData.id);
+            if (m) { try { map.removeLayer(m); } catch (e) {} offeredDriverMarkers.delete(userData.id); }
+        }
+
+        // Emergency flow: emit alert to admins (Socket.IO) and fallback to HTTP
+        async function triggerEmergency() {
+            if (!confirm('Send an emergency alert to admins now?')) return;
+            const btn = document.getElementById('emergencyBtn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+
+            // try to get current location
+            let loc = userLocation || null;
+            if (!loc && navigator.geolocation) {
+                try {
+                    await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition((p) => { loc = { lat: p.coords.latitude, lng: p.coords.longitude }; resolve(); }, (err) => { resolve(); }, { timeout: 5000 });
+                    });
+                } catch (e) { /* ignore */ }
+            }
+
+            const payload = { userId: userData && userData.id ? userData.id : null, location: loc, message: 'User pressed emergency button' };
+
+            try {
+                socket.emit('emergencyAlert', payload);
+            } catch (e) { console.warn('Socket emit emergency failed', e); }
+
+            // fallback HTTP POST for servers that prefer REST
+            try {
+                const res = await fetch('/api/emergency', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('authToken') || ''}` },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) showNotification('Emergency alert sent to admins.', 'success', 6000);
+                else showNotification('Emergency alert attempted (socket used).', 'warn', 6000);
+            } catch (err) {
+                console.warn('Emergency HTTP fallback failed', err);
+                showNotification('Emergency alert sent (socket).', 'success', 6000);
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = '⚠️ Emergency'; }
+            }
+        }
+
+        // Submit passenger->driver review for current active ride
+        async function submitPassengerReview() {
+            try {
+                const rating = parseInt(document.getElementById('passengerRatingSelect').value);
+                const comment = document.getElementById('passengerReviewInput').value || '';
+                // currentRide should hold the active ride object with driver_id
+                if (!currentRide || !currentRide.id) return alert('No active ride to review');
+                const targetId = currentRide.driver_id;
+                if (!targetId) return alert('No driver to review');
+
+                const res = await fetch(`/api/rides/${currentRide.id}/review`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('authToken') || ''}` },
+                    body: JSON.stringify({ reviewerId: userData && userData.id ? userData.id : null, targetId, rating, comment })
+                });
+                if (!res.ok) {
+                    const e = await res.json().catch(()=>({error:'Failed'}));
+                    return alert('Failed to submit review: ' + (e.error || res.status));
+                }
+                showNotification('Thank you — your review was submitted.', 'success', 4000);
+                // hide review UI
+                const box = document.getElementById('passengerReviewBox'); if (box) box.style.display = 'none';
+            } catch (err) { console.error('submitPassengerReview error', err); alert('Network error'); }
+        }
+
+        // Submit driver->passenger review for current driver active ride
+        async function submitDriverReview() {
+            try {
+                const rating = parseInt(document.getElementById('driverRatingSelect').value);
+                const comment = document.getElementById('driverReviewInput').value || '';
+                if (!userData || !userData.id) return alert('No user data');
+                // driverActiveRideDetails should contain ride id stored in currentRide or driverActiveRide
+                const ride = currentRide || null;
+                if (!ride || !ride.id) return alert('No active ride to review');
+                const passengerId = ride.student_id || ride.passenger_id || ride.studentId;
+                if (!passengerId) return alert('No passenger to review');
+
+                const res = await fetch(`/api/rides/${ride.id}/review`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('authToken') || ''}` },
+                    body: JSON.stringify({ reviewerId: userData.id, targetId: passengerId, rating, comment })
+                });
+                if (!res.ok) {
+                    const e = await res.json().catch(()=>({error:'Failed'}));
+                    return alert('Failed to submit review: ' + (e.error || res.status));
+                }
+                showNotification('Passenger review submitted.', 'success', 4000);
+                const box = document.getElementById('driverReviewBox'); if (box) box.style.display = 'none';
+            } catch (err) { console.error('submitDriverReview error', err); alert('Network error'); }
+        }
+
         // Load available rides and render them for the approved driver
         async function loadAvailableRidesForDriver() {
             const container = document.getElementById('driverAvailableRides');
@@ -1506,8 +1848,8 @@
                 });
             }
 
-            // map click modes for selecting pickup/destination
-            map.pickMode = null; // 'pickup' | 'dest' | null
+            // map click modes for selecting pickup/destination or offering a ride
+            map.pickMode = null; // 'pickup' | 'dest' | 'offer' | null
             map.on('click', function(e) {
                 if (map.pickMode === 'pickup') {
                     setPickupCoords(e.latlng.lat, e.latlng.lng, 'Picked from map');
@@ -1517,6 +1859,13 @@
                     setDestCoords(e.latlng.lat, e.latlng.lng, 'Picked from map');
                     map.pickMode = null;
                     document.getElementById('pickDestOnMap').classList.remove('active');
+                } else if (map.pickMode === 'offer') {
+                    // driver chooses a location on map to offer a ride from
+                    try {
+                        createOfferAt(e.latlng.lat, e.latlng.lng);
+                    } catch (err) { console.warn('createOfferAt error', err); }
+                    map.pickMode = null;
+                    const btn = document.getElementById('offerFromMapBtn'); if (btn) btn.classList.remove('active');
                 }
             });
         }
@@ -1544,13 +1893,19 @@
         // Setup pick-on-map toggle buttons
         function togglePickMode(mode) {
             if (!map) return;
+            // handle toggling the offer button separately
             if (map.pickMode === mode) {
                 map.pickMode = null;
-                document.getElementById(mode === 'pickup' ? 'pickPickupOnMap' : 'pickDestOnMap').classList.remove('active');
+                if (mode === 'offer') {
+                    const b = document.getElementById('offerFromMapBtn'); if (b) b.classList.remove('active');
+                } else {
+                    document.getElementById(mode === 'pickup' ? 'pickPickupOnMap' : 'pickDestOnMap').classList.remove('active');
+                }
             } else {
                 map.pickMode = mode;
                 document.getElementById('pickPickupOnMap').classList.toggle('active', mode === 'pickup');
                 document.getElementById('pickDestOnMap').classList.toggle('active', mode === 'dest');
+                const offerBtn = document.getElementById('offerFromMapBtn'); if (offerBtn) offerBtn.classList.toggle('active', mode === 'offer');
             }
         }
 
@@ -2104,16 +2459,21 @@
                     // Update local session state with authoritative server response
                     const updated = data.user || { username, phone, major, gender, fullName };
                     userData.username = updated.username || username;
-                    userData.full_name = updated.full_name || updated.fullName || fullName || userData.full_name;
+                    // normalize to camelCase `fullName` consistently
+                    userData.fullName = updated.fullName || updated.full_name || fullName || userData.fullName || userData.full_name;
                     userData.phone = updated.phone || phone;
                     userData.major = updated.major || major;
                     userData.gender = updated.gender || gender;
+                    if (updated.avatar) userData.avatar = updated.avatar;
                     sessionStorage.setItem('userData', JSON.stringify(userData));
+
+                    // Refresh authoritative data from server to ensure persistence across sessions
+                    try { await refreshUserData(); } catch (e) { console.warn('refreshUserData after save failed', e); }
 
                     showNotification('✅ Profile saved', 'success', 3000);
                     // refresh header values
-                    const welcome = document.getElementById('welcomeUser'); if (welcome) welcome.textContent = `Welcome, ${userData.full_name || userData.fullName || userData.username}!`;
-                    const profileName = document.getElementById('profileName'); if (profileName) profileName.textContent = userData.username;
+                    const welcome = document.getElementById('welcomeUser'); if (welcome) welcome.textContent = `Welcome, ${userData.fullName || userData.full_name || userData.username}!`;
+                    const profileName = document.getElementById('profileName'); if (profileName) profileName.textContent = userData.fullName || userData.full_name || userData.username;
                 } catch (err) {
                     console.error('saveProfile network error', err);
                     alert('Network error while saving profile');
@@ -2168,6 +2528,110 @@
         // When any driverStatusUpdated comes in, re-render driver tab (refreshUserData already called in handler)
         socket.on('driverStatusUpdated', (d) => {
             try { renderDriverTab(); } catch (e) {}
+        });
+    </script>
+    <script>
+        // Ticket functions
+        async function submitTicket() {
+            try {
+                const type = document.getElementById('ticketType').value;
+                const subject = document.getElementById('ticketSubject').value.trim();
+                const body = document.getElementById('ticketBody').value.trim();
+                if (!subject || !body) return alert('Please provide a subject and description for the ticket.');
+                const payload = { userId: userData && userData.id ? userData.id : null, type, subject, body };
+                document.getElementById('submitTicketBtn').disabled = true;
+                const res = await fetch('/api/tickets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('authToken') || ''}` },
+                    body: JSON.stringify(payload)
+                });
+                document.getElementById('submitTicketBtn').disabled = false;
+                if (!res.ok) {
+                    const e = await res.json().catch(()=>({ error: 'Failed' }));
+                    return alert('Failed to create ticket: ' + (e.error || res.status));
+                }
+                showNotification('Ticket submitted. Admins will review it shortly.', 'success', 5000);
+                document.getElementById('ticketSubject').value = '';
+                document.getElementById('ticketBody').value = '';
+                loadUserTickets();
+            } catch (err) {
+                console.error('submitTicket error', err);
+                document.getElementById('submitTicketBtn').disabled = false;
+                alert('Network error while submitting ticket.');
+            }
+        }
+
+        async function loadUserTickets() {
+            try {
+                const listEl = document.getElementById('userTicketsList');
+                if (!listEl) return;
+                listEl.innerHTML = '<div style="color:#64748b;">Loading your tickets...</div>';
+                if (!userData || !userData.id) { listEl.innerHTML = '<div style="color:#dc2626;">No user data</div>'; return; }
+                const res = await fetch(`/api/users/${encodeURIComponent(userData.id)}/tickets`, {
+                    headers: { 'Authorization': `Bearer ${sessionStorage.getItem('authToken') || ''}` }
+                });
+                if (!res.ok) { listEl.innerHTML = '<div style="color:#dc2626;">Failed to load tickets</div>'; return; }
+                const d = await res.json();
+                const tickets = d.tickets || [];
+                renderTickets(tickets);
+            } catch (err) {
+                console.error('loadUserTickets error', err);
+                const listEl = document.getElementById('userTicketsList'); if (listEl) listEl.innerHTML = '<div style="color:#dc2626;">Network error</div>';
+            }
+        }
+
+        function renderTickets(tickets) {
+            const listEl = document.getElementById('userTicketsList');
+            if (!listEl) return;
+            if (!tickets || tickets.length === 0) { listEl.innerHTML = '<div style="color:#64748b;">You have no tickets.</div>'; return; }
+            listEl.innerHTML = '';
+            tickets.sort((a,b)=> new Date(b.created_at) - new Date(a.created_at));
+            tickets.forEach(t => {
+                const card = document.createElement('div');
+                card.style.padding = '10px';
+                card.style.border = '1px solid #e2e8f0';
+                card.style.borderRadius = '8px';
+                card.style.marginBottom = '8px';
+                card.style.background = '#fff';
+                const when = new Date(t.created_at || Date.now()).toLocaleString();
+                const statusColor = (t.status === 'open') ? '#f59e0b' : (t.status === 'closed' ? '#10b981' : '#64748b');
+                card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;"><div><strong>${escapeHtml(t.subject||t.type)}</strong> <div style='font-size:12px;color:#64748b;'>${escapeHtml(t.type)} • ${when}</div></div><div style="font-weight:700;color:${statusColor};">${escapeHtml(t.status||'open')}</div></div><div style="margin-top:8px;color:#374151;">${escapeHtml(t.body||'')}</div>`;
+                if (t.admin_reply) {
+                    const rep = document.createElement('div');
+                    rep.style.marginTop = '8px';
+                    rep.style.paddingTop = '8px';
+                    rep.style.borderTop = '1px dashed #e2e8f0';
+                    rep.innerHTML = `<strong>Admin reply:</strong><div style="margin-top:6px;color:#111827;">${escapeHtml(t.admin_reply)}</div>`;
+                    card.appendChild(rep);
+                }
+                listEl.appendChild(card);
+            });
+        }
+
+        // simple HTML escape
+        function escapeHtml(s) { if (!s && s !== 0) return ''; return String(s).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c]; }); }
+
+        // Socket listeners for ticket updates
+        socket.on('ticketUpdated', (payload) => {
+            try {
+                if (!payload || !payload.ticket) return;
+                const t = payload.ticket;
+                // if it's for this user, refresh list and show notification
+                if (userData && String(userData.id) === String(t.user_id)) {
+                    showNotification('Your ticket was updated by an admin.', 'info', 6000);
+                    loadUserTickets();
+                }
+            } catch (e) { console.warn('ticketUpdated handler error', e); }
+        });
+
+        // Admins may receive a 'newTicket' broadcast; normal users ignore it
+        socket.on('newTicket', (payload) => {
+            try {
+                // If this client is an admin, consider reloading admin UI (not implemented here)
+                if (userData && userData.accountType === 'admin') {
+                    showNotification('A new ticket has been submitted.', 'info', 4000);
+                }
+            } catch (e) { console.warn('newTicket handler error', e); }
         });
     </script>
 </body>

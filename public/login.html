@@ -13,6 +13,7 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            /* Fallback gradient if no image provided */
             background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%);
             min-height: 100vh;
             display: flex;
@@ -23,28 +24,30 @@
             overflow: hidden;
         }
 
+        /* Background image layer. Drop your image at `public/assets/login-bg.jpg` to use it.
+           You can replace the path or add multiple sizes if you prefer. */
         body::before {
             content: '';
             position: absolute;
-            width: 500px;
-            height: 500px;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
-            border-radius: 50%;
-            top: -200px;
-            left: -200px;
-            animation: float 6s ease-in-out infinite;
+            inset: 0;
+            background-image: url('/assets/login-bg.jpg');
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            opacity: 0.18; /* subtle by default for readability */
+            z-index: 0;
+            transition: opacity 200ms ease;
         }
 
+        /* Themed blue overlay to keep text readable and match site colors */
         body::after {
             content: '';
             position: absolute;
-            width: 400px;
-            height: 400px;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
-            border-radius: 50%;
-            bottom: -150px;
-            right: -150px;
-            animation: float 8s ease-in-out infinite reverse;
+            inset: 0;
+            /* Use the site's blue tint (semi-opaque) */
+            background: rgba(37, 99, 235, 0.32); /* #2563eb */
+            z-index: 0;
+            mix-blend-mode: multiply;
         }
 
         @keyframes float {
@@ -53,7 +56,7 @@
         }
 
         .login-container {
-            background: white;
+            background: rgba(255,255,255,0.98);
             border-radius: 30px;
             box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
             width: 100%;
@@ -62,6 +65,7 @@
             position: relative;
             z-index: 1;
             animation: slideUp 0.6s ease-out;
+            backdrop-filter: blur(4px);
         }
 
         @keyframes slideUp {
@@ -618,10 +622,11 @@
                     sessionStorage.setItem('email', email);
                     sessionStorage.setItem('username', data.user.username);
                     
-                    // Show success message
+                    // Show success message using full name when available
+                    const displayName = data.user.fullName || data.user.username;
                     showModal(
                         '✅ Login Successful',
-                        `Welcome back, ${data.user.username}! Redirecting...`,
+                        `Welcome back, ${displayName}! Redirecting...`,
                         'success',
                         '✅'
                     );
