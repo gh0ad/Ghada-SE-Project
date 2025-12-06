@@ -45,6 +45,54 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 app.use(express.static(__dirname));
 
+// Admin authorization middleware
+function requireAdmin(req, res, next) {
+    try {
+        const adminKey = process.env.ADMIN_KEY;
+        // 1) If ADMIN_KEY is set, allow requests that present it via header `x-admin-key` or query param
+        if (adminKey) {
+            const provided = req.headers['x-admin-key'] || req.query.adminKey || req.body && req.body.adminKey;
+            if (provided && provided === adminKey) return next();
+            return res.status(401).json({ error: 'Missing or invalid admin key' });
+        }
+
+        // 2) Otherwise, accept a Bearer JWT and verify accountType or role === 'admin'
+        const auth = req.headers.authorization || req.headers.Authorization;
+        if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing admin token' });
+        const token = auth.split(' ')[1];
+        try {
+            const payload = jwt.verify(token, JWT_SECRET);
+            if (payload && (payload.accountType === 'admin' || payload.role === 'admin')) {
+                // attach adminId for downstream handlers
+                req.adminId = payload.userId || payload.userID || payload.id;
+                return next();
+            }
+            return res.status(403).json({ error: 'Not an admin' });
+        } catch (e) {
+            return res.status(401).json({ error: 'Invalid admin token' });
+        }
+    } catch (e) {
+        console.warn('requireAdmin error', e);
+        return res.status(500).json({ error: 'Server error' });
+    }
+}
+
+// Debug: list registered routes (temporary)
+app.get('/__routes', (req, res) => {
+    try {
+        const routes = [];
+        app._router.stack.forEach(mw => {
+            if (mw.route && mw.route.path) {
+                const methods = Object.keys(mw.route.methods).join(',').toUpperCase();
+                routes.push({ path: mw.route.path, methods });
+            }
+        });
+        res.json({ routes });
+    } catch (e) {
+        res.status(500).json({ error: String(e) });
+    }
+});
+
 // In-memory storage for active sessions
 const activeSockets = new Map();
 const onlineDrivers = new Map();
@@ -344,7 +392,7 @@ app.get('/api/driver-application/:userId', async (req, res) => {
 
 // ==================== ADMIN ENDPOINTS ====================
 
-app.get('/api/admin/pending-students', async (req, res) => {
+app.get('/api/admin/pending-students', requireAdmin, async (req, res) => {
     try {
         const result = await pool.query(
             `SELECT id, username, email, student_id, university, major, created_at
@@ -360,7 +408,7 @@ app.get('/api/admin/pending-students', async (req, res) => {
     }
 });
 
-app.get('/api/admin/pending-drivers', async (req, res) => {
+app.get('/api/admin/pending-drivers', requireAdmin, async (req, res) => {
     try {
         const result = await pool.query(
             `SELECT da.*, COALESCE(u.full_name, u.username) as username, u.email, u.student_id, u.university
@@ -378,7 +426,7 @@ app.get('/api/admin/pending-drivers', async (req, res) => {
 });
 
 // Return approved driver applications for admin listing
-app.get('/api/admin/approved-drivers', async (req, res) => {
+app.get('/api/admin/approved-drivers', requireAdmin, async (req, res) => {
     try {
         const result = await pool.query(
             `SELECT da.*, COALESCE(u.full_name, u.username) as username, u.email, u.student_id, u.university
@@ -395,7 +443,128 @@ app.get('/api/admin/approved-drivers', async (req, res) => {
     }
 });
 
-app.post('/api/admin/approve-student', async (req, res) => {
+// -------------------- Announcements --------------------
+// Admins can post announcements which are persisted and broadcast to clients
+app.post('/api/announcements', requireAdmin, async (req, res) => {
+    try {
+        const { title, message, type, eventDate, adminId } = req.body || {};
+        if (!title || !message) return res.status(400).json({ error: 'Missing title or message' });
+
+        // Ensure announcements table exists
+        await pool.query(`CREATE TABLE IF NOT EXISTS announcements (
+            id SERIAL PRIMARY KEY,
+            title TEXT,
+            message TEXT,
+            type VARCHAR(50) DEFAULT 'system',
+            event_date TIMESTAMP NULL,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )`);
+
+        const insert = await pool.query(
+            `INSERT INTO announcements (title, message, type, event_date, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+            [title, message, type || 'system', eventDate || null, adminId || null]
+        );
+
+        const announcement = insert.rows[0];
+
+        // Broadcast to all connected clients; clients will decide how to render
+        try { io.emit('newAnnouncement', { announcement }); } catch (e) { console.warn('Failed to emit newAnnouncement', e); }
+
+        res.json({ success: true, announcement });
+    } catch (e) {
+        console.error('Create announcement error:', e);
+        res.status(500).json({ error: 'Failed to create announcement' });
+    }
+});
+
+app.get('/api/announcements', async (req, res) => {
+    try {
+        await pool.query(`CREATE TABLE IF NOT EXISTS announcements (
+            id SERIAL PRIMARY KEY,
+            title TEXT,
+            message TEXT,
+            type VARCHAR(50) DEFAULT 'system',
+            event_date TIMESTAMP NULL,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )`);
+
+        const r = await pool.query('SELECT * FROM announcements ORDER BY created_at DESC LIMIT 100');
+        res.json({ announcements: r.rows });
+    } catch (e) {
+        console.error('Get announcements error:', e);
+        res.status(500).json({ error: 'Failed to fetch announcements' });
+    }
+});
+
+// Update an announcement (admin)
+app.put('/api/announcements/:id', requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, message, type, eventDate } = req.body || {};
+        if (!title && !message && !type && !eventDate) return res.status(400).json({ error: 'No fields to update' });
+
+        await pool.query(`CREATE TABLE IF NOT EXISTS announcements (
+            id SERIAL PRIMARY KEY,
+            title TEXT,
+            message TEXT,
+            type VARCHAR(50) DEFAULT 'system',
+            event_date TIMESTAMP NULL,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )`);
+
+        const fields = [];
+        const params = [];
+        let idx = 1;
+        if (title !== undefined) { fields.push(`title = $${idx++}`); params.push(title); }
+        if (message !== undefined) { fields.push(`message = $${idx++}`); params.push(message); }
+        if (type !== undefined) { fields.push(`type = $${idx++}`); params.push(type); }
+        if (eventDate !== undefined) { fields.push(`event_date = $${idx++}`); params.push(eventDate || null); }
+
+        params.push(id);
+        const sql = `UPDATE announcements SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`;
+        const r = await pool.query(sql, params);
+        if (r.rows.length === 0) return res.status(404).json({ error: 'Announcement not found' });
+        const announcement = r.rows[0];
+
+        try { io.emit('announcementUpdated', { announcement }); } catch (e) { console.warn('Failed to emit announcementUpdated', e); }
+
+        res.json({ success: true, announcement });
+    } catch (e) {
+        console.error('Update announcement error:', e);
+        res.status(500).json({ error: 'Failed to update announcement' });
+    }
+});
+
+// Delete an announcement (admin)
+app.delete('/api/announcements/:id', requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await pool.query(`CREATE TABLE IF NOT EXISTS announcements (
+            id SERIAL PRIMARY KEY,
+            title TEXT,
+            message TEXT,
+            type VARCHAR(50) DEFAULT 'system',
+            event_date TIMESTAMP NULL,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )`);
+
+        const del = await pool.query('DELETE FROM announcements WHERE id = $1 RETURNING id', [id]);
+        if (del.rows.length === 0) return res.status(404).json({ error: 'Announcement not found' });
+
+        try { io.emit('announcementDeleted', { id }); } catch (e) { console.warn('Failed to emit announcementDeleted', e); }
+
+        res.json({ success: true, id: del.rows[0].id });
+    } catch (e) {
+        console.error('Delete announcement error:', e);
+        res.status(500).json({ error: 'Failed to delete announcement' });
+    }
+});
+
+app.post('/api/admin/approve-student', requireAdmin, async (req, res) => {
     try {
         const { studentId } = req.body;
         
@@ -491,7 +660,7 @@ app.get('/api/users/:userId/tickets', async (req, res) => {
 });
 
 // Admin: list all tickets (optionally filter by status via query ?status=open)
-app.get('/api/admin/tickets', async (req, res) => {
+app.get('/api/admin/tickets', requireAdmin, async (req, res) => {
     try {
         const status = req.query.status;
         const where = status ? 'WHERE status = $1' : '';
@@ -505,7 +674,7 @@ app.get('/api/admin/tickets', async (req, res) => {
 });
 
 // Admin: review/update a ticket (reply/close)
-app.post('/api/admin/tickets/:ticketId/review', async (req, res) => {
+app.post('/api/admin/tickets/:ticketId/review', requireAdmin, async (req, res) => {
     try {
         const { ticketId } = req.params;
         const { adminId, status, adminReply } = req.body || {};
@@ -549,7 +718,7 @@ app.post('/api/admin/tickets/:ticketId/review', async (req, res) => {
     }
 });
 
-app.post('/api/admin/review-driver', async (req, res) => {
+app.post('/api/admin/review-driver', requireAdmin, async (req, res) => {
     try {
         const { applicationId, adminId, approved, reason } = req.body;
         
@@ -785,7 +954,7 @@ app.post('/api/users/update', async (req, res) => {
     }
 });
 
-app.get('/api/admin/stats', async (req, res) => {
+app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     try {
         const stats = await pool.query(`
             SELECT 
@@ -808,25 +977,47 @@ app.get('/api/admin/stats', async (req, res) => {
 
 app.post('/api/rides', async (req, res) => {
     try {
-        const { studentId, pickup, destination, passengers, fare } = req.body;
-        
+        const { studentId } = req.body || {};
+
+        // Defensive normalization for pickup/destination payloads.
+        const rawPickup = req.body && req.body.pickup ? req.body.pickup : null;
+        const rawDestination = req.body && req.body.destination ? req.body.destination : null;
+        const passengers = req.body && req.body.passengers ? req.body.passengers : 1;
+        const fare = req.body && (req.body.fare !== undefined) ? req.body.fare : null;
+
+        function normalizePlace(p) {
+            if (!p) return { location: null, lat: null, lng: null };
+            if (typeof p === 'string') return { location: p, lat: null, lng: null };
+            // Accept multiple naming conventions from clients
+            const location = p.location || p.name || p.address || null;
+            const lat = p.lat || p.latitude || (p.coords && p.coords.lat) || null;
+            const lng = p.lng || p.longitude || (p.coords && p.coords.lng) || null;
+            return { location, lat, lng };
+        }
+
+        const pickup = normalizePlace(rawPickup);
+        const destination = normalizePlace(rawDestination);
+
+        // Ensure required fields exist (studentId at minimum)
+        if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
+
         const result = await pool.query(
             `INSERT INTO rides 
              (student_id, pickup_location, pickup_lat, pickup_lng, destination_location, 
               destination_lat, destination_lng, passengers, fare)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
              RETURNING *`,
-            [studentId, pickup.location, pickup.lat, pickup.lng, 
+            [studentId, pickup.location, pickup.lat, pickup.lng,
              destination.location, destination.lat, destination.lng, passengers, fare]
         );
-        
+
         const ride = result.rows[0];
-        io.emit('newRideRequest', { ride });
-        
+        try { io.emit('newRideRequest', { ride }); } catch (e) { console.warn('Emit newRideRequest failed', e); }
+
         res.json({ success: true, ride });
     } catch (error) {
-        console.error('Create ride error:', error);
-        res.status(500).json({ error: 'Failed to create ride' });
+        console.error('Create ride error:', error, 'payload:', { body: req.body });
+        res.status(500).json({ error: 'Failed to create ride', details: error && error.message ? error.message : String(error) });
     }
 });
 
@@ -885,6 +1076,25 @@ app.get('/api/rides/student/:studentId', async (req, res) => {
     }
 });
 
+// Get rides for a driver (matched/active)
+app.get('/api/rides/driver/:driverId', async (req, res) => {
+    try {
+        const { driverId } = req.params;
+        const result = await pool.query(
+            `SELECT r.*, COALESCE(u.full_name, u.username) as student_name, u.phone as student_phone
+             FROM rides r
+             LEFT JOIN users u ON r.student_id = u.id
+             WHERE r.driver_id = $1 AND r.status IN ('matched','active')
+             ORDER BY r.accepted_at DESC`,
+            [driverId]
+        );
+        res.json({ rides: result.rows });
+    } catch (error) {
+        console.error('Get driver rides error:', error);
+        res.status(500).json({ error: 'Failed to get driver rides' });
+    }
+});
+
 app.get('/api/rides/available', async (req, res) => {
     try {
         const result = await pool.query(
@@ -907,7 +1117,15 @@ app.post('/api/rides/:rideId/accept', async (req, res) => {
     try {
         const { rideId } = req.params;
         const { driverId } = req.body;
-        
+        // Ensure driver doesn't have another active or matched ride
+        const drvCheck = await pool.query(
+            `SELECT id FROM rides WHERE driver_id = $1 AND status IN ('matched','active') LIMIT 1`,
+            [driverId]
+        );
+        if (drvCheck.rows.length > 0) {
+            return res.status(400).json({ error: 'Driver already has an active ride' });
+        }
+
         const result = await pool.query(
             `UPDATE rides 
              SET driver_id = $1, status = 'matched', accepted_at = NOW()
@@ -920,11 +1138,18 @@ app.post('/api/rides/:rideId/accept', async (req, res) => {
             return res.status(400).json({ error: 'Ride not available' });
         }
         
-        // Fetch ride with joined driver info for richer client payload
+        // Fetch ride with joined driver and student info for richer client payload
         const rideFullRes = await pool.query(
-            `SELECT r.*, COALESCE(u.full_name, u.username) as driver_name, u.phone as driver_phone
+            `SELECT r.*,
+                    COALESCE(ud.full_name, ud.username) as driver_name,
+                    ud.phone as driver_phone,
+                    ud.avatar as driver_avatar,
+                    COALESCE(us.full_name, us.username) as student_name,
+                    us.phone as student_phone,
+                    us.avatar as student_avatar
              FROM rides r
-             LEFT JOIN users u ON r.driver_id = u.id
+             LEFT JOIN users ud ON r.driver_id = ud.id
+             LEFT JOIN users us ON r.student_id = us.id
              WHERE r.id = $1`,
             [rideId]
         );
@@ -947,6 +1172,89 @@ app.post('/api/rides/:rideId/accept', async (req, res) => {
     } catch (error) {
         console.error('Accept ride error:', error);
         res.status(500).json({ error: 'Failed to accept ride' });
+    }
+});
+
+// Cancel a ride (allowed for driver or student). Cancellation window: 2 minutes after accept.
+app.post('/api/rides/:rideId/cancel', async (req, res) => {
+    try {
+        const { rideId } = req.params;
+        const { userId } = req.body; // id of the caller (driver or student)
+
+        const r = await pool.query('SELECT * FROM rides WHERE id = $1', [rideId]);
+        if (r.rows.length === 0) return res.status(404).json({ error: 'Ride not found' });
+        const ride = r.rows[0];
+
+        if (!ride.accepted_at) return res.status(400).json({ error: 'Ride has not been accepted yet' });
+
+        const acceptedAt = new Date(ride.accepted_at);
+        const now = new Date();
+        const diffMs = now - acceptedAt;
+        const twoMinutesMs = 2 * 60 * 1000;
+
+        if (diffMs > twoMinutesMs) {
+            return res.status(400).json({ error: 'Cancellation window expired' });
+        }
+
+        // Only passenger or assigned driver may cancel
+        if (userId !== ride.student_id && userId !== ride.driver_id) {
+            return res.status(403).json({ error: 'Not authorized to cancel this ride' });
+        }
+
+        await pool.query('UPDATE rides SET status = $1, cancelled_at = NOW() WHERE id = $2', ['cancelled', rideId]);
+
+        // Notify both parties
+        try {
+            if (ride.student_id) io.to(`user:${ride.student_id}`).emit('rideCancelled', { rideId });
+            if (ride.driver_id) io.to(`user:${ride.driver_id}`).emit('rideCancelled', { rideId });
+        } catch (e) { console.warn('Failed to emit rideCancelled', e); }
+
+        res.json({ success: true, rideId });
+    } catch (e) {
+        console.error('Cancel ride error:', e);
+        res.status(500).json({ error: 'Failed to cancel ride' });
+    }
+});
+
+// End / complete a ride. Can be invoked by driver or passenger. If invoked by passenger, driverId is inferred.
+app.post('/api/rides/:rideId/end', async (req, res) => {
+    try {
+        const { rideId } = req.params;
+        const { userId, fare } = req.body || {};
+
+        const r = await pool.query('SELECT * FROM rides WHERE id = $1', [rideId]);
+        if (r.rows.length === 0) return res.status(404).json({ error: 'Ride not found' });
+        const ride = r.rows[0];
+
+        // Only allow if ride is matched or active
+        if (!['matched','active'].includes(ride.status)) return res.status(400).json({ error: 'Ride is not active' });
+
+        // Authorization: caller must be driver or passenger
+        if (userId !== ride.student_id && userId !== ride.driver_id) {
+            return res.status(403).json({ error: 'Not authorized to end this ride' });
+        }
+
+        // Mark completed
+        await pool.query('UPDATE rides SET status = $1, completed_at = NOW() WHERE id = $2', ['completed', rideId]);
+
+        // If fare provided and driver exists, update driver earnings
+        try {
+            const driverId = ride.driver_id;
+            const parsedFare = fare !== undefined ? parseFloat(fare) : (ride.fare ? parseFloat(ride.fare) : 0);
+            if (driverId && parsedFare) {
+                await pool.query('UPDATE driver_applications SET total_rides = COALESCE(total_rides,0) + 1, total_earnings = COALESCE(total_earnings,0) + $1 WHERE user_id = $2', [parsedFare, driverId]);
+            }
+        } catch (e) { console.warn('Failed to update driver earnings', e); }
+
+        try {
+            if (ride.student_id) io.to(`user:${ride.student_id}`).emit('rideEnded', { rideId });
+            if (ride.driver_id) io.to(`user:${ride.driver_id}`).emit('rideEnded', { rideId });
+        } catch (e) { console.warn('Failed to emit rideEnded', e); }
+
+        res.json({ success: true, rideId });
+    } catch (e) {
+        console.error('End ride error:', e);
+        res.status(500).json({ error: 'Failed to end ride' });
     }
 });
 
@@ -1173,6 +1481,61 @@ io.on('connection', (socket) => {
         }
     });
     
+    // Allow clients (drivers and passengers) to join a ride-specific room so chat messages can be routed to participants
+    socket.on('joinRideRoom', (rideId) => {
+        try {
+            if (!rideId) return;
+            const room = `ride:${rideId}`;
+            socket.join(room);
+            console.log(`Socket ${socket.id} joined ride room ${room}`);
+        } catch (e) {
+            console.warn('joinRideRoom error', e);
+        }
+    });
+
+    // Allow admin dashboards to request joining the admins room.
+    // If ADMIN_KEY env var is set, clients must pass it in the payload { adminKey }
+    // Otherwise joining is allowed for development convenience or via JWT passed as payload.
+    socket.on('adminJoin', (payload) => {
+        try {
+            const adminKey = process.env.ADMIN_KEY || null;
+            // If ADMIN_KEY configured, require it
+            if (adminKey) {
+                if (!payload || payload.adminKey !== adminKey) {
+                    console.warn(`Socket ${socket.id} attempted adminJoin without valid adminKey`);
+                    return;
+                }
+                socket.join('admins');
+                console.log(`Socket ${socket.id} joined admins room (adminKey)`);
+                return;
+            }
+
+            // Otherwise, if payload appears to be a JWT token string, verify and ensure accountType === 'admin'
+            if (typeof payload === 'string' && payload.split && payload.split('.').length === 3) {
+                try {
+                    const pl = jwt.verify(payload, JWT_SECRET);
+                    if (pl && (pl.accountType === 'admin' || pl.role === 'admin')) {
+                        socket.join('admins');
+                        console.log(`Socket ${socket.id} joined admins room (jwt)`);
+                        return;
+                    } else {
+                        console.warn(`Socket ${socket.id} provided JWT but not admin`);
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('adminJoin JWT verify failed', e.message || e);
+                    return;
+                }
+            }
+
+            // Fallback: no ADMIN_KEY and no JWT provided — allow join (development mode)
+            socket.join('admins');
+            console.log(`Socket ${socket.id} joined admins room (dev fallback)`);
+        } catch (e) {
+            console.warn('adminJoin error', e);
+        }
+    });
+
     socket.on('driverOnline', async (data) => {
         const { driverId, location } = data;
         onlineDrivers.set(driverId, { 
@@ -1263,7 +1626,14 @@ io.on('connection', (socket) => {
             [rideId, senderId, message]
         );
         
-        io.emit('chatMessage', { rideId, senderId, message, timestamp: new Date() });
+        // Emit chat message to the ride-specific room so only participants receive it
+        try {
+            const room = `ride:${rideId}`;
+            io.to(room).emit('chatMessage', { rideId, senderId, message, timestamp: new Date() });
+        } catch (e) {
+            console.warn('Failed to emit chatMessage to ride room, falling back to broadcast', e);
+            io.emit('chatMessage', { rideId, senderId, message, timestamp: new Date() });
+        }
     });
     
     socket.on('typing', (data) => {

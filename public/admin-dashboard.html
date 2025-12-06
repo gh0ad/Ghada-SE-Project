@@ -703,6 +703,7 @@
         <nav class="sidebar-nav">
             <li><a class="active" onclick="switchNav('drivers')">Driver Verification</a></li>
             <li><a onclick="switchNav('announcements')">Announcements</a></li>
+            <li><a onclick="switchNav('emergencies')">Emergencies</a></li>
             <li><a onclick="switchNav('support')">Tech Support</a></li>
             <li><a onclick="switchNav('admins')">Manage Admins</a></li>
         </nav>
@@ -846,6 +847,26 @@
                                 <button class="btn-edit">Edit</button>
                                 <button class="btn-delete">Delete</button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Emergencies Tab -->
+        <div id="emergenciesSection" class="tab-content">
+            <div class="announcements-container">
+                <div>
+                    <h3 style="color: #1e40af; margin-bottom: 1.5rem;">Live Emergency Alerts</h3>
+                    <div id="emergencyList">
+                        <div class="announcement-item">
+                            <div class="announcement-header">
+                                <div>
+                                    <h4>No active emergencies</h4>
+                                </div>
+                                <span class="announcement-date">—</span>
+                            </div>
+                            <p class="announcement-text">When a user presses the emergency button, alerts will appear here in real time.</p>
                         </div>
                     </div>
                 </div>
@@ -1007,7 +1028,27 @@
         </div>
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script>
+        // Helper to include admin credentials (local dev ADMIN_KEY or session token) on requests
+        function adminFetch(url, options = {}) {
+            options.headers = options.headers || {};
+            // Prefer explicit admin key stored in localStorage (for local dev)
+            const adminKey = localStorage.getItem('ADMIN_KEY');
+            if (adminKey) {
+                options.headers['x-admin-key'] = adminKey;
+            }
+            // Also attach Authorization if adminSession includes a token
+            try {
+                const adminSession = sessionStorage.getItem('adminSession');
+                if (adminSession) {
+                    const admin = JSON.parse(adminSession);
+                    if (admin && admin.token) options.headers['Authorization'] = 'Bearer ' + admin.token;
+                }
+            } catch (e) { /* ignore */ }
+            return fetch(url, options);
+        }
+
         // Check admin session
         window.addEventListener('DOMContentLoaded', () => {
             const adminSession = sessionStorage.getItem('adminSession');
@@ -1066,18 +1107,185 @@
             const type = document.getElementById('announcementType').value;
             const title = document.getElementById('announcementTitle').value;
             const message = document.getElementById('announcementMessage').value;
-
             if (!title || !message) {
                 alert('Please fill in all fields');
                 return;
             }
 
-            showSuccess('Announcement created successfully.\n\nTitle: ' + title + '\nType: ' + type);
-            
-            // Clear form
-            document.getElementById('announcementTitle').value = '';
-            document.getElementById('announcementMessage').value = '';
+            (async () => {
+                try {
+                    const adminSession = sessionStorage.getItem('adminSession');
+                    const admin = adminSession ? JSON.parse(adminSession) : {};
+                    const adminId = admin.id || admin.userId || null;
+                    const eventDate = document.getElementById('eventDate').value || null;
+
+                    const res = await adminFetch('/api/announcements', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title, message, type, eventDate, adminId })
+                    });
+                    if (!res.ok) {
+                        const err = await res.json().catch(()=>null);
+                        throw new Error((err && err.error) ? err.error : 'Server error');
+                    }
+                    const json = await res.json();
+
+                    showSuccess('Announcement posted successfully.');
+
+                    // Clear form
+                    document.getElementById('announcementTitle').value = '';
+                    document.getElementById('announcementMessage').value = '';
+                    document.getElementById('eventDate').value = '';
+
+                    // Optionally, refresh the recent announcements list in the admin UI
+                    if (typeof loadAdminAnnouncements === 'function') loadAdminAnnouncements();
+                } catch (e) {
+                    console.warn('createAnnouncement error', e);
+                    alert('Failed to create announcement: ' + (e.message || e));
+                }
+            })();
         }
+
+        // Load announcements for the admin recent list
+        async function loadAdminAnnouncements() {
+            try {
+                const res = await adminFetch('/api/announcements');
+                if (!res.ok) {
+                    console.warn('/api/announcements returned', res.status);
+                    return;
+                }
+                const json = await res.json();
+                const list = json && json.announcements ? json.announcements : [];
+                const container = document.querySelector('#announcementsSection .announcements-list');
+                if (!container) return;
+                container.innerHTML = '';
+                for (const ann of list) {
+                    const item = document.createElement('div');
+                    item.className = 'announcement-item';
+                    const header = document.createElement('div');
+                    header.className = 'announcement-header';
+                    const left = document.createElement('div');
+                    const h = document.createElement('h4'); h.textContent = ann.title || '';
+                    const t = document.createElement('span'); t.className = 'announcement-type ' + (ann.type === 'event' ? 'event' : 'system'); t.textContent = ann.type === 'event' ? 'Event' : 'System';
+                    left.appendChild(h); left.appendChild(t);
+                    const date = document.createElement('span'); date.className = 'announcement-date'; date.textContent = ann.created_at ? new Date(ann.created_at).toLocaleString() : '';
+                    header.appendChild(left); header.appendChild(date);
+                    const p = document.createElement('p'); p.className = 'announcement-text'; p.textContent = ann.message || '';
+                    const actions = document.createElement('div'); actions.className = 'announcement-actions';
+                    const btnEdit = document.createElement('button'); btnEdit.className = 'btn-edit'; btnEdit.textContent = 'Edit';
+                    const btnDelete = document.createElement('button'); btnDelete.className = 'btn-delete'; btnDelete.textContent = 'Delete';
+                    // Wire buttons
+                    btnEdit.onclick = () => editAnnouncement(ann.id);
+                    btnDelete.onclick = () => deleteAnnouncement(ann.id);
+                    actions.appendChild(btnEdit); actions.appendChild(btnDelete);
+                    item.appendChild(header); item.appendChild(p); item.appendChild(actions);
+                    container.appendChild(item);
+                }
+            } catch (e) {
+                console.warn('loadAdminAnnouncements error', e);
+            }
+        }
+
+        // Edit an announcement (simple prompt-based editor)
+        async function editAnnouncement(id) {
+            try {
+                // Fetch the current announcement so we can prefill prompts
+                const res0 = await adminFetch('/api/announcements');
+                const json0 = await res0.json();
+                const ann = (json0.announcements || []).find(a => String(a.id) === String(id));
+                if (!ann) return alert('Announcement not found');
+
+                const newTitle = prompt('Edit title:', ann.title || '');
+                if (newTitle === null) return; // cancelled
+                const newMessage = prompt('Edit message:', ann.message || '');
+                if (newMessage === null) return;
+                const datePrompt = prompt('Event date/time (ISO) or leave blank:', ann.event_date || '');
+                const payload = { title: newTitle, message: newMessage, eventDate: datePrompt || null };
+
+                const res = await adminFetch('/api/announcements/' + encodeURIComponent(id), {
+                    method: 'PUT',
+                    headers: Object.assign({'Content-Type':'application/json'}, {}),
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(()=>null);
+                    throw new Error((err && err.error) ? err.error : 'Server error');
+                }
+                showSuccess('Announcement updated');
+                await loadAdminAnnouncements();
+            } catch (e) {
+                console.warn('editAnnouncement error', e);
+                alert('Failed to update announcement: ' + (e.message || e));
+            }
+        }
+
+        // Delete announcement with confirmation
+        async function deleteAnnouncement(id) {
+            try {
+                if (!confirm('Delete this announcement?')) return;
+                const res = await adminFetch('/api/announcements/' + encodeURIComponent(id), { method: 'DELETE' });
+                if (!res.ok) {
+                    const err = await res.json().catch(()=>null);
+                    throw new Error((err && err.error) ? err.error : 'Server error');
+                }
+                showSuccess('Announcement deleted');
+                await loadAdminAnnouncements();
+            } catch (e) {
+                console.warn('deleteAnnouncement error', e);
+                alert('Failed to delete announcement: ' + (e.message || e));
+            }
+        }
+
+        // Ensure admin announcements load when the page is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            try { loadAdminAnnouncements(); } catch (e) { console.warn('Initial loadAdminAnnouncements failed', e); }
+            // Connect Socket.IO for admin real-time events (emergencies)
+            try {
+                const socket = io();
+                // Wait for socket connection before joining admins room
+                socket.on('connect', () => {
+                    try {
+                        const adminKey = localStorage.getItem('ADMIN_KEY');
+                        const adminSession = sessionStorage.getItem('adminSession');
+                        let token = null;
+                        try { token = adminSession ? JSON.parse(adminSession).token : null; } catch (e) { token = null; }
+                        if (adminKey) socket.emit('adminJoin', { adminKey });
+                        else if (token) socket.emit('adminJoin', token);
+                        else socket.emit('adminJoin');
+                    } catch (e) { console.warn('adminJoin emit failed', e); }
+                });
+
+                socket.on('emergencyAlert', (payload) => {
+                    try {
+                        if (!payload) return;
+                        const list = document.getElementById('emergencyList');
+                        if (!list) return;
+                        // Clear placeholder if present
+                        if (list.children.length === 1 && list.children[0].textContent.includes('No active emergencies')) {
+                            list.innerHTML = '';
+                        }
+
+                        const item = document.createElement('div');
+                        item.className = 'announcement-item';
+                        const header = document.createElement('div'); header.className = 'announcement-header';
+                        const left = document.createElement('div');
+                        const h = document.createElement('h4'); h.textContent = payload.message || 'Emergency Alert';
+                        left.appendChild(h);
+                        const date = document.createElement('span'); date.className = 'announcement-date'; date.textContent = new Date(payload.timestamp || Date.now()).toLocaleString();
+                        header.appendChild(left); header.appendChild(date);
+                        const p = document.createElement('p'); p.className = 'announcement-text'; p.textContent = 'From User: ' + (payload.fromUserId || 'Unknown') + (payload.location ? (' — ' + JSON.stringify(payload.location)) : '');
+
+                        const actions = document.createElement('div'); actions.className = 'announcement-actions';
+                        const ack = document.createElement('button'); ack.className = 'btn-edit'; ack.textContent = 'Acknowledge';
+                        ack.onclick = () => { item.remove(); };
+                        actions.appendChild(ack);
+
+                        item.appendChild(header); item.appendChild(p); item.appendChild(actions);
+                        list.prepend(item);
+                    } catch (e) { console.warn('Error rendering emergencyAlert', e); }
+                });
+            } catch (e) { console.warn('Admin socket setup failed', e); }
+        });
 
         // Tech Support Toggle
         function toggleTechSupport() {
@@ -1096,7 +1304,7 @@
                 const admin = adminSession ? JSON.parse(adminSession) : {};
                 const adminId = admin.id || admin.userId || admin.adminId || null;
 
-                const res = await fetch('/api/admin/review-driver', {
+                const res = await adminFetch('/api/admin/review-driver', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ applicationId: id, adminId, approved: true, reason: null })
@@ -1122,7 +1330,7 @@
                 const admin = adminSession ? JSON.parse(adminSession) : {};
                 const adminId = admin.id || admin.userId || admin.adminId || null;
 
-                const res = await fetch('/api/admin/review-driver', {
+                const res = await adminFetch('/api/admin/review-driver', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ applicationId: id, adminId, approved: false, reason })
@@ -1144,7 +1352,7 @@
             const container = document.getElementById('pendingGrid');
             container.innerHTML = '<div class="empty-state">Loading pending applications...</div>';
             try {
-                const res = await fetch('/api/admin/pending-drivers');
+                const res = await adminFetch('/api/admin/pending-drivers');
                 if (!res.ok) throw new Error('Failed to fetch pending drivers');
                 const data = await res.json();
                 const apps = Array.isArray(data.applications) ? data.applications : [];
@@ -1181,7 +1389,7 @@
             if (!container) return;
             container.innerHTML = '<div class="empty-state">Loading approved drivers...</div>';
             try {
-                const res = await fetch('/api/admin/approved-drivers');
+                const res = await adminFetch('/api/admin/approved-drivers');
                 if (!res.ok) throw new Error('Failed to fetch approved drivers');
                 const data = await res.json();
                 const apps = Array.isArray(data.applications) ? data.applications : [];
@@ -1249,7 +1457,7 @@
         // Fetch and update dashboard stats from server
         async function refreshStats() {
             try {
-                const res = await fetch('/api/admin/stats');
+                const res = await adminFetch('/api/admin/stats');
                 if (!res.ok) throw new Error('Failed to fetch stats');
                 const data = await res.json();
                 const s = data.stats || {};

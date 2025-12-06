@@ -461,9 +461,79 @@
 
         /* ===== DRIVER APPLICATION TAB ===== */
         .driver-app-container {
-            max-width: 900px;
+            max-width: 1100px;
             margin: 0 auto;
             padding: 2rem;
+            display: flex;
+            gap: 1.5rem;
+            align-items: flex-start;
+            /* keep layout stable: fixed-size side-by-side boxes */
+            justify-content: center;
+        }
+
+        /* Fixed width left (captain controls) and right (ride details) boxes */
+        .driver-left {
+            width: 680px;
+            flex: 0 0 680px;
+        }
+
+        .driver-right {
+            width: 360px;
+            flex: 0 0 360px;
+            min-width: 300px;
+        }
+
+        .ride-details-box {
+            background: white;
+            padding: 1.25rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+            /* fixed height with internal scroll for long content */
+            max-height: calc(100vh - 220px);
+            overflow-y: auto;
+        }
+
+        .driver-profile-compact {
+            display:flex; gap:12px; align-items:center;
+        }
+
+        .driver-profile-compact img.avatar {
+            width:64px; height:64px; border-radius:8px; object-fit:cover;
+        }
+
+        /* Driver controls box (collapsible) */
+        .driver-controls-box {
+            background: white;
+            border: 1px solid #e6eef8;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 6px 18px rgba(2,6,23,0.04);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+            position: relative;
+            max-height: 140px; /* collapsed height */
+            padding-bottom: 16px;
+            transition: max-height 320ms ease, box-shadow 200ms ease;
+        }
+
+        .driver-controls-box.expanded {
+            max-height: 680px; /* expanded to show available rides */
+            box-shadow: 0 18px 40px rgba(2,6,23,0.08);
+        }
+
+        .controls-header { margin-bottom: 12px; }
+        .controls-body { margin-top: 8px; }
+        .controls-footer { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+        .controls-footer { position: absolute; right: 16px; bottom: 16px; background: transparent; }
+        .controls-footer .submit-btn { z-index: 5; }
+
+        /* Footer inside the controls box removed — a persistent global footer is used instead */
+
+        @media (max-width: 900px) {
+            .driver-app-container { flex-direction: column; }
+            .driver-right { width: 100%; }
         }
 
         .driver-app-form {
@@ -471,6 +541,8 @@
             padding: 2rem;
             border-radius: 15px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-height: calc(100vh - 220px);
+            overflow-y: auto;
         }
 
         .form-section {
@@ -785,6 +857,11 @@
                                 <button class="submit-btn" id="submitPassengerReviewBtn" onclick="submitPassengerReview()">Send</button>
                             </div>
                         </div>
+                        <div style="margin-top:12px; display:flex; gap:8px;">
+                            <button class="submit-btn" id="cancelRideBtn" style="background:#ef4444;" onclick="cancelCurrentRide()" disabled>Cancel Ride</button>
+                            <button class="submit-btn" id="endRideBtn" style="background:#10b981;" onclick="endCurrentRide()" disabled>End Ride</button>
+                            <div id="cancelWindowTimer" style="margin-left:8px; align-self:center; color:#92400e; font-size:0.95rem;"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -800,10 +877,10 @@
 
             <!-- Chat Panel -->
             <div class="chat-panel">
-                <div class="chat-header">💬 Chat with Driver</div>
+                <div class="chat-header">💬 Chat</div>
                 <div class="chat-messages" id="chatMessages">
                     <div class="message received">
-                        <div class="message-bubble">Request a ride to start chatting with drivers.</div>
+                        <div class="message-bubble">There must be an active ride to use the chat.</div>
                         <div class="message-time">System</div>
                     </div>
                 </div>
@@ -859,21 +936,20 @@
             <div id="captainStatusReason" style="margin-top:6px; color:#92400e;"></div>
         </div>
         <div class="driver-app-container">
+            <div class="driver-left">
             <!-- Captain Controls shown after approval -->
-            <div id="driverControlsContainer" style="display:none; max-width:900px; margin:0 auto; padding:2rem;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-                    <h3 style="margin:0; color:#1e40af;">🧭 Captain Controls</h3>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <div id="driverStatusBadge" style="font-weight:700; color:#065f46;">Inactive</div>
-                            <button class="submit-btn" id="toggleDriverAvailBtn" type="button">Go Online</button>
-                            <button class="submit-btn" id="offerFromMapBtn" type="button" style="background:#f97316;">Offer Ride From Map</button>
+            <div id="driverControlsContainer" class="driver-controls-box" style="display:none;">
+                <div class="controls-header">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <h3 style="margin:0; color:#1e40af;">🧭 Captain Controls</h3>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <div id="driverStatusBadge" style="font-weight:700; color:#065f46;">Inactive</div>
+                        </div>
                     </div>
                 </div>
 
-                <div id="driverActiveInfo" style="display:none; margin-bottom:1rem; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
-                    <strong>Active Ride:</strong>
-                    <div id="driverActiveRideDetails">No active rides</div>
-                </div>
+                <div class="controls-body">
+                <!-- legacy driverActiveInfo removed; new `rideInfoPanel` is used on the right-side -->
                 <div id="driverReviewBox" style="display:none; margin-bottom:1rem; border-top:1px dashed #e2e8f0; padding-top:12px;">
                     <strong>Rate your Passenger</strong>
                     <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
@@ -897,8 +973,14 @@
 
                 <div id="driverOffersList" style="margin-top:0.75rem;"></div>
 
-                <h4 style="color:#1e40af;">Available Ride Requests</h4>
+                <h4 style="color:#1e40af; margin-top:12px;">Available Ride Requests</h4>
                 <div id="driverAvailableRides" style="margin-top:0.75rem;"></div>
+                </div>
+
+                <div class="controls-footer">
+                    <button class="submit-btn" id="offerFromMapBtn" type="button" style="background:#f97316; display:none;">Offer Ride From Map</button>
+                    <button class="submit-btn" id="toggleDriverAvailBtn" type="button">Go Online</button>
+                </div>
             </div>
 
             <div class="driver-app-form">
@@ -981,6 +1063,46 @@
 
                     <button type="submit" class="submit-btn">Submit Application</button>
                 </form>
+            </div>
+            </div>
+
+            <!-- Persistent footer for driver controls to keep toggle always clickable -->
+            <!-- Offer and availability buttons live inside the controls box footer to keep them together with Captain controls -->
+
+            <div class="driver-right">
+                <div class="ride-details-box" id="captainRideBox">
+                    <h4 style="margin-top:0;">🚗 Ride Details</h4>
+                    <div id="rideSummary" style="margin-bottom:12px; color:#475569;">No active ride</div>
+
+                    <div id="rideInfoPanel" style="display:none;">
+                        <div class="driver-profile-compact" style="margin-bottom:12px;">
+                            <img id="rideDriverAvatar" class="avatar" src="" alt="Driver avatar" onerror="this.style.display='none'" />
+                            <div>
+                                <div id="rideDriverName" style="font-weight:700; color:#0f172a;">Driver Name</div>
+                                <div id="rideDriverCar" style="color:#64748b; font-size:0.95rem;">Car • Details</div>
+                                <div id="rideDriverRating" style="color:#f59e0b; font-size:0.95rem;">5.0★</div>
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom:12px;">
+                            <div><strong>Pickup:</strong> <span id="ridePickup">-</span></div>
+                            <div><strong>Destination:</strong> <span id="rideDestination">-</span></div>
+                            <div><strong>Fare:</strong> <span id="rideFare">-</span></div>
+                            <div><strong>ETA:</strong> <span id="rideETA">-</span></div>
+                        </div>
+
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <div style="display:flex; gap:8px;">
+                                <button class="submit-btn" id="callDriverBtn" type="button">Call Driver</button>
+                                <button class="submit-btn" id="trackRideBtn" type="button" style="background:#3b82f6;">Track</button>
+                            </div>
+                            <div style="display:flex; gap:8px;">
+                                <button class="submit-btn" id="cancelRideBtnSide" style="background:#ef4444; display:none;" type="button" disabled>Cancel Ride</button>
+                                <button class="submit-btn" id="endRideBtnSide" style="background:#10b981; display:none;" type="button" disabled>End Ride</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1159,6 +1281,46 @@
                 console.warn('Error handling driverStatusUpdated:', e);
             }
         });
+        
+        // Announcements: real-time updates from server
+        socket.on('newAnnouncement', (data) => {
+            try {
+                if (!data || !data.announcement) return;
+                const ann = data.announcement;
+                appendAnnouncementToUI(ann, true);
+                showNotification('New announcement: ' + (ann.title || 'Announcement'), 'info', 4000);
+            } catch (e) {
+                console.warn('Error handling newAnnouncement socket:', e);
+            }
+        });
+
+        // Announcement updated
+        socket.on('announcementUpdated', (data) => {
+            try {
+                if (!data || !data.announcement) return;
+                const ann = data.announcement;
+                // Replace existing DOM node if present, otherwise prepend
+                const existing = document.getElementById('announcement-' + ann.id);
+                if (existing) {
+                    existing.remove();
+                    appendAnnouncementToUI(ann, true);
+                } else {
+                    appendAnnouncementToUI(ann, true);
+                }
+                showNotification('Announcement updated: ' + (ann.title || ''), 'info', 3000);
+            } catch (e) { console.warn('Error handling announcementUpdated', e); }
+        });
+
+        // Announcement deleted
+        socket.on('announcementDeleted', (data) => {
+            try {
+                if (!data || (data.id === undefined)) return;
+                const id = data.id;
+                const existing = document.getElementById('announcement-' + id);
+                if (existing) existing.remove();
+                showNotification('Announcement removed', 'warn', 3000);
+            } catch (e) { console.warn('Error handling announcementDeleted', e); }
+        });
         let currentRide = null;
         let userLocation = null;
         let map, userMarker, driverMarker, routeLine;
@@ -1203,14 +1365,233 @@
             } catch (e) { console.warn('reviewSubmitted handler error', e); }
         });
 
+        // On load: fetch any active/matched rides for this passenger so UI persists across refresh
+        async function loadMyRidesOnLoad() {
+            try {
+                if (!userData || !userData.id) return;
+                const res = await fetch(`/api/rides/student/${userData.id}`);
+                if (!res.ok) return;
+                const d = await res.json();
+                const rides = d.rides || [];
+                // Prefer active then matched
+                const active = rides.find(r => r.status === 'active') || rides.find(r => r.status === 'matched');
+                if (active) {
+                    currentRide = active;
+                    // Update UI similar to rideAccepted handler
+                    const pickupEl = document.getElementById('activePickup');
+                    const destEl = document.getElementById('activeDestination');
+                    const driverEl = document.getElementById('driverName');
+                    const fareEl = document.getElementById('rideFare');
+                    if (pickupEl) pickupEl.textContent = active.pickup_location || '-';
+                    if (destEl) destEl.textContent = active.destination_location || '-';
+                    if (driverEl) driverEl.textContent = active.driver_name || 'Driver';
+                    if (fareEl) fareEl.textContent = active.fare ? ('SAR ' + Number(active.fare).toFixed(2)) : '-';
+                    const activeBox = document.getElementById('activeRideSection'); if (activeBox) activeBox.style.display = 'block';
+
+                    // Enable chat
+                    const chatInput = document.getElementById('chatInput');
+                    const sendBtn = document.querySelector('.send-btn');
+                    if (chatInput) { chatInput.disabled = false; }
+                    if (sendBtn) sendBtn.disabled = false;
+                    try { socket.emit('joinRideRoom', active.id); } catch (e) {}
+
+                    // Setup cancel window timer
+                    setupCancelButtonTimer(active);
+                    // Enable end ride button immediately
+                    try { document.getElementById('endRideBtn').disabled = false; } catch (e) {}
+                }
+            } catch (e) { console.warn('loadMyRidesOnLoad error', e); }
+        }
+
+        // Fallback loader for Captain panel: fetch driver's matched/active rides
+        async function loadCaptainActiveOnLoad() {
+            try {
+                if (!userData || !userData.id) return;
+                if (!(userData.isActiveDriver || userData.accountType === 'driver')) return;
+                console.log('loadCaptainActiveOnLoad: fetching driver rides for', userData.id);
+                const res = await fetch(`/api/rides/driver/${userData.id}`);
+                if (!res.ok) {
+                    console.warn('loadCaptainActiveOnLoad: fetch returned', res.status);
+                    return;
+                }
+                const d = await res.json();
+                const rides = d.rides || [];
+                const active = rides.find(r => r.status === 'active') || rides.find(r => r.status === 'matched');
+                // legacy driverActiveInfo removed; use right-side panel instead
+                if (active) {
+                    console.log('loadCaptainActiveOnLoad: found active ride', active.id);
+                    currentRide = active;
+                    try { socket.emit('joinRideRoom', active.id); } catch (e) { console.warn('joinRideRoom failed', e); }
+                    try { populateRideInfoPanel(active); } catch (e) { console.warn('populateRideInfoPanel failed', e); }
+                } else {
+                    console.log('loadCaptainActiveOnLoad: no active rides');
+                    // ensure right-side panel is hidden when no active ride
+                    try { const rideInfoPanel = document.getElementById('rideInfoPanel'); if (rideInfoPanel) rideInfoPanel.style.display = 'none'; } catch (e) {}
+                }
+            } catch (e) { console.warn('loadCaptainActiveOnLoad error', e); }
+        }
+
+        // Return true if ride is within the 2-minute cancel window
+        function isWithinCancelWindow(ride) {
+            try {
+                if (!ride || !ride.accepted_at) return false;
+                const acceptedAt = new Date(ride.accepted_at);
+                const expiresAt = new Date(acceptedAt.getTime() + 2*60*1000);
+                return (new Date()) < expiresAt;
+            } catch (e) { return false; }
+        }
+
+        // Append a system message to the chat (prevents duplicate consecutive system messages)
+        function appendSystemChatMessage(text) {
+            try {
+                const container = document.getElementById('chatMessages');
+                if (!container) return;
+                const last = container.lastElementChild;
+                if (last && last.classList.contains('message') && last.querySelector('.message-bubble') && last.querySelector('.message-time') && last.querySelector('.message-time').textContent === 'System' && last.querySelector('.message-bubble').textContent === text) {
+                    return; // avoid duplicate consecutive system messages
+                }
+                const m = document.createElement('div');
+                m.className = 'message received';
+                const bubble = document.createElement('div');
+                bubble.className = 'message-bubble';
+                bubble.textContent = text;
+                const time = document.createElement('div');
+                time.className = 'message-time';
+                time.textContent = 'System';
+                m.appendChild(bubble);
+                m.appendChild(time);
+                container.appendChild(m);
+                // scroll to bottom
+                try { container.scrollTop = container.scrollHeight; } catch (e) {}
+            } catch (e) { console.warn('appendSystemChatMessage failed', e); }
+        }
+
+        // Populate the right-side ride info panel. Shows passenger info for drivers, driver info for passengers.
+        function populateRideInfoPanel(ride) {
+            if (!ride) return;
+            // normalize common field names so clients are tolerant of server payload variations
+            const rideSummary = document.getElementById('rideSummary');
+            const rideInfoPanel = document.getElementById('rideInfoPanel');
+            const pickupLoc = ride.pickup_location || ride.pickupLocation || ride.pickup || '-';
+            const destLoc = ride.destination_location || ride.destinationLocation || ride.destination || '-';
+            if (rideSummary) rideSummary.textContent = `Ride #${ride.id || ride.rideId || '-'} — ${pickupLoc} → ${destLoc}`;
+            if (rideInfoPanel) rideInfoPanel.style.display = 'block';
+
+            // normalize participant ids
+            const driverId = ride.driver_id || ride.driverId || ride.driver || ride.captain_id || ride.captainId || null;
+            const studentId = ride.student_id || ride.studentId || ride.passenger_id || ride.passengerId || null;
+
+            const avatar = document.getElementById('rideDriverAvatar');
+            const nameEl = document.getElementById('rideDriverName');
+            const carEl = document.getElementById('rideDriverCar');
+            const ratingEl = document.getElementById('rideDriverRating');
+            const rp = document.getElementById('ridePickup');
+            const rd = document.getElementById('rideDestination');
+            const rf = document.getElementById('rideFare');
+            const etaEl = document.getElementById('rideETA');
+
+            // Buttons
+            const callBtn = document.getElementById('callDriverBtn');
+            const trackBtn = document.getElementById('trackRideBtn');
+            const cancelSideBtn = document.getElementById('cancelRideBtnSide');
+            const endSideBtn = document.getElementById('endRideBtnSide');
+
+            // Default fields
+            if (rp) rp.textContent = ride.pickup_location || '-';
+            if (rd) rd.textContent = ride.destination_location || '-';
+            if (rf) rf.textContent = ride.fare ? ('SAR ' + Number(ride.fare).toFixed(2)) : '-';
+            if (etaEl) etaEl.textContent = 'Arriving soon';
+
+            // If current user is the driver, show passenger info and wire driver actions
+            const amDriver = (userData && driverId && String(userData.id) === String(driverId));
+            console.debug('populateRideInfoPanel:', { rideId: ride.id || ride.rideId, driverId, studentId, amDriver });
+            if (amDriver) {
+                // show passenger as primary
+                if (avatar) {
+                    const sa = ride.student_avatar || ride.passenger_avatar || ride.student_avatar_url || ride.passengerAvatar;
+                    if (sa) { avatar.src = sa; avatar.style.display = 'inline-block'; }
+                    else avatar.style.display = 'none';
+                }
+                if (nameEl) nameEl.textContent = ride.student_name || ride.passenger_name || ride.student_full_name || 'Passenger';
+                if (carEl) carEl.textContent = (ride.student_id || ride.passenger_id ? ('ID: ' + (ride.student_id || ride.passenger_id)) : 'Passenger');
+                if (ratingEl) ratingEl.style.display = 'none';
+
+                // Call button should call passenger phone
+                if (callBtn) {
+                    callBtn.onclick = () => { const phone = ride.student_phone || ride.passenger_phone || ride.studentPhone || ride.passengerPhone; if (phone) window.location.href = `tel:${phone}`; else alert('Passenger phone not available'); };
+                }
+
+                // Show cancel/end side buttons for driver
+                if (cancelSideBtn) { cancelSideBtn.style.display = 'inline-block'; cancelSideBtn.disabled = !isWithinCancelWindow(ride); cancelSideBtn.onclick = cancelCurrentRideDriver; }
+                if (endSideBtn) { endSideBtn.style.display = 'inline-block'; endSideBtn.disabled = false; endSideBtn.onclick = endCurrentRideDriver; }
+
+                // Set call button label and ensure chat is enabled for driver
+                try {
+                    if (callBtn) callBtn.textContent = 'Call Passenger';
+                    const chatInput = document.getElementById('chatInput');
+                    const sendBtn = document.querySelector('.send-btn');
+                    if (chatInput) { chatInput.disabled = false; }
+                    if (sendBtn) sendBtn.disabled = false;
+                    try { socket.emit('joinRideRoom', ride.id || ride.rideId); } catch (e) { console.warn('joinRideRoom emit failed for driver', e); }
+                } catch (e) { console.warn('enable chat for driver failed', e); }
+                // Inform driver in chat that a ride is active
+                try { const pname = ride.student_name || ride.passenger_name || 'Passenger'; appendSystemChatMessage(`Active ride with ${pname}. Chat is available.`); } catch (e) {}
+
+                // Ensure passenger active UI on left is visible
+                // legacy driverActiveInfo removed
+            } else {
+                // Passenger view: show driver info
+                if (avatar) {
+                    const da = ride.driver_avatar || ride.driverAvatar || ride.driver_avatar_url || null;
+                    if (da) { avatar.src = da; avatar.style.display = 'inline-block'; } else avatar.style.display = 'none';
+                }
+                if (nameEl) nameEl.textContent = ride.driver_name || ride.driverName || 'Driver';
+                if (carEl) carEl.textContent = ((ride.vehicle_make || ride.vehicleMake || '') + ' ' + (ride.vehicle_model || ride.vehicleModel || '')).trim() || 'Car • Details';
+                if (ratingEl) { ratingEl.style.display = 'block'; ratingEl.textContent = (ride.rating ? (ride.rating + '★') : ''); }
+
+                if (callBtn) { callBtn.textContent = 'Call Driver'; callBtn.onclick = () => { const phone = ride.driver_phone || ride.driverPhone || ride.driver_contact || null; if (phone) window.location.href = `tel:${phone}`; else alert('Driver phone not available'); } }
+
+                // Show cancel/end side buttons for passenger
+                if (cancelSideBtn) { cancelSideBtn.style.display = 'inline-block'; cancelSideBtn.disabled = !isWithinCancelWindow(ride); cancelSideBtn.onclick = cancelCurrentRide; }
+                if (endSideBtn) { endSideBtn.style.display = 'inline-block'; endSideBtn.disabled = false; endSideBtn.onclick = endCurrentRide; }
+
+                // Enable chat and join room
+                try { document.getElementById('chatInput').disabled = false; document.querySelector('.send-btn').disabled = false; socket.emit('joinRideRoom', ride.id || ride.rideId); } catch (e) {}
+                            // Inform passenger in chat that a ride is active
+                            try { const dname = ride.driver_name || ride.driverName || 'Captain'; appendSystemChatMessage(`Active ride with ${dname}. Chat is available.`); } catch (e) {}
+            }
+
+            // Track button behavior (center on driver or passenger as available)
+            if (trackBtn) {
+                trackBtn.onclick = () => {
+                    try {
+                        if (amDriver) {
+                            // center on passenger marker if available
+                            if (typeof studentMarker !== 'undefined' && studentMarker && studentMarker.getLatLng) {
+                                map.setView(studentMarker.getLatLng(), 15);
+                                return;
+                            }
+                        } else {
+                            if (typeof driverMarker !== 'undefined' && driverMarker && driverMarker.getLatLng) { map.setView(driverMarker.getLatLng(), 15); return; }
+                        }
+                        if (userLocation && userLocation.lat) map.setView([userLocation.lat, userLocation.lng], 14);
+                    } catch (e) { console.warn('Track button error', e); }
+                };
+            }
+        }
+
         // When a ride is accepted, update passenger UI and enable chat
         socket.on('rideAccepted', (payload) => {
             try {
+                console.log('socket: rideAccepted handler invoked, payload=', payload);
                 const ride = payload && payload.ride ? payload.ride : payload;
                 if (!ride) return;
 
+                // normalize participant ids for this payload
+                const payloadDriverId = ride.driver_id || ride.driverId || ride.driver || ride.captain_id || ride.captainId || null;
+                const payloadStudentId = ride.student_id || ride.studentId || ride.passenger_id || ride.passengerId || null;
                 // If I'm the passenger for this ride
-                if (userData && String(userData.id) === String(ride.student_id)) {
+                if (userData && payloadStudentId && String(userData.id) === String(payloadStudentId)) {
                     currentRide = ride;
                     // Update active ride UI
                     const pickupEl = document.getElementById('activePickup');
@@ -1228,6 +1609,9 @@
                     const sendBtn = document.querySelector('.send-btn');
                     if (chatInput) { chatInput.disabled = false; chatInput.focus(); }
                     if (sendBtn) sendBtn.disabled = false;
+
+                        // Join the ride room for chat messages
+                        try { socket.emit('joinRideRoom', ride.id); } catch (e) { console.warn('joinRideRoom emit failed', e); }
 
                     // Estimate ETA (simple heuristic). If both locations available and we have userLocation, compute distance
                     let etaText = 'Arriving soon';
@@ -1250,15 +1634,21 @@
                     } catch (e) { etaText = 'ETA ~8 min'; }
 
                     showNotification(`Captain ${ride.driver_name || 'assigned'} accepted your ride. Fare: ${ride.fare ? ('SAR '+Number(ride.fare).toFixed(2)) : 'TBD'}. ${etaText}`, 'success', 8000);
+                    // Setup cancel button timer
+                    try { setupCancelButtonTimer(ride); } catch (e) {}
+                    try { document.getElementById('endRideBtn').disabled = false; } catch (e) {}
+                    // populate right-side ride details panel
+                    try { populateRideInfoPanel(ride); } catch (e) { console.warn('populateRideInfoPanel error', e); }
                 }
 
-                // If I'm the driver, update driver active UI
-                if (userData && String(userData.id) === String(ride.driver_id)) {
+                // If I'm the driver, update driver active UI via the right-side panel
+                if (userData && payloadDriverId && String(userData.id) === String(payloadDriverId)) {
                     currentRide = ride;
-                    const driverActiveBox = document.getElementById('driverActiveInfo');
-                    const details = document.getElementById('driverActiveRideDetails');
-                    if (driverActiveBox) driverActiveBox.style.display = 'block';
-                    if (details) details.textContent = `Ride #${ride.id} — Pickup: ${ride.pickup_location || '-'} → ${ride.destination_location || '-'} — Fare: ${ride.fare ? ('SAR '+Number(ride.fare).toFixed(2)) : 'TBD'}`;
+                    try { console.debug('rideAccepted: I am driver, populating panel', { ride }); populateRideInfoPanel(ride); } catch (e) { console.warn('populateRideInfoPanel error', e); }
+                    // Ensure chat and room join for driver (in case populate didn't run yet)
+                    try { const chatInput = document.getElementById('chatInput'); const sendBtn = document.querySelector('.send-btn'); if (chatInput) chatInput.disabled = false; if (sendBtn) sendBtn.disabled = false; try { socket.emit('joinRideRoom', ride.id || ride.rideId); } catch (e) {} } catch (e) {}
+                    // Setup cancel timer for driver as well
+                    try { setupCancelButtonTimer(ride); } catch (e) {}
                 }
             } catch (e) { console.warn('rideAccepted handler error', e); }
         });
@@ -1276,6 +1666,162 @@
                 }
             } catch (e) { console.warn('driverOfferRemoved handler error', e); }
         });
+
+        socket.on('rideCancelled', (payload) => {
+            try {
+                const rideId = payload && payload.rideId ? payload.rideId : (payload && payload.ride && payload.ride.id ? payload.ride.id : null);
+                if (!rideId) return;
+                if (currentRide && String(currentRide.id) === String(rideId)) {
+                    showNotification('Ride was cancelled', 'warn', 4000);
+                        try { appendSystemChatMessage('Ride was cancelled. Chat disabled.'); } catch (e) {}
+                        clearActiveRideUI();
+                }
+            } catch (e) { console.warn('rideCancelled handler error', e); }
+        });
+
+        socket.on('rideEnded', (payload) => {
+            try {
+                const rideId = payload && payload.rideId ? payload.rideId : (payload && payload.ride && payload.ride.id ? payload.ride.id : null);
+                if (!rideId) return;
+                if (currentRide && String(currentRide.id) === String(rideId)) {
+                    showNotification('Ride has ended', 'success', 3000);
+                    try { appendSystemChatMessage('Ride has ended. Chat disabled.'); } catch (e) {}
+                    clearActiveRideUI();
+                }
+            } catch (e) { console.warn('rideEnded handler error', e); }
+        });
+
+        // Cancel current ride (passenger action)
+        async function cancelCurrentRide() {
+            try {
+                if (!currentRide || !currentRide.id) return alert('No active ride to cancel');
+                const userId = userData && userData.id;
+                const res = await fetch(`/api/rides/${currentRide.id}/cancel`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId })
+                });
+                const d = await res.json();
+                if (!res.ok) return alert(d.error || 'Failed to cancel ride');
+                showNotification('Ride cancelled', 'success', 4000);
+                // Reset UI
+                clearActiveRideUI();
+                try { setupCancelButtonTimer(null); } catch (e) {}
+            } catch (e) { console.error('cancelCurrentRide error', e); alert('Network error'); }
+        }
+
+        // End current ride (passenger action)
+        async function endCurrentRide() {
+            try {
+                if (!currentRide || !currentRide.id) return alert('No active ride to end');
+                const userId = userData && userData.id;
+                const res = await fetch(`/api/rides/${currentRide.id}/end`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId })
+                });
+                const d = await res.json();
+                if (!res.ok) return alert(d.error || 'Failed to end ride');
+                showNotification('Ride ended', 'success', 4000);
+                clearActiveRideUI();
+                try { setupCancelButtonTimer(null); } catch (e) {}
+            } catch (e) { console.error('endCurrentRide error', e); alert('Network error'); }
+        }
+
+        // Cancel current ride (driver action) — allowed within 2 minutes of accept
+        async function cancelCurrentRideDriver() {
+            try {
+                if (!currentRide || !currentRide.id) return alert('No active ride to cancel');
+                const res = await fetch(`/api/rides/${currentRide.id}/cancel`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userData.id })
+                });
+                const d = await res.json();
+                if (!res.ok) return alert(d.error || 'Failed to cancel ride');
+                showNotification('Ride cancelled', 'success', 4000);
+                // Reset UI
+                clearActiveRideUI();
+            } catch (e) { console.error('cancelCurrentRideDriver error', e); alert('Network error'); }
+        }
+
+        // End current ride (driver action)
+        async function endCurrentRideDriver() {
+            try {
+                if (!currentRide || !currentRide.id) return alert('No active ride to end');
+                const res = await fetch(`/api/rides/${currentRide.id}/end`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userData.id, fare: parseFloat(currentRide.fare) })
+                });
+                const d = await res.json();
+                if (!res.ok) return alert(d.error || 'Failed to end ride');
+                showNotification('Ride ended', 'success', 4000);
+                clearActiveRideUI();
+                // legacy driverActiveInfo removed
+            } catch (e) { console.error('endCurrentRideDriver error', e); alert('Network error'); }
+        }
+
+        // Cancel timer helper: enable cancel buttons (left and side) if within 2 minutes of accepted_at
+        // Stores interval on `window.cancelTimerInterval` so it can be cleared elsewhere.
+        function setupCancelButtonTimer(ride) {
+            try {
+                // clear any prior timer
+                try { if (window.cancelTimerInterval) { clearInterval(window.cancelTimerInterval); window.cancelTimerInterval = null; } } catch (e) {}
+
+                const leftCancelBtn = document.getElementById('cancelRideBtn');
+                const sideCancelBtn = document.getElementById('cancelRideBtnSide');
+                const timerEl = document.getElementById('cancelWindowTimer');
+
+                if (!ride || !ride.accepted_at) {
+                    if (leftCancelBtn) leftCancelBtn.disabled = true;
+                    if (sideCancelBtn) sideCancelBtn.disabled = true;
+                    if (timerEl) timerEl.textContent = '';
+                    return;
+                }
+
+                const acceptedAt = new Date(ride.accepted_at);
+                const expiresAt = new Date(acceptedAt.getTime() + 2*60*1000);
+
+                function update() {
+                    const now = new Date();
+                    const diff = expiresAt - now;
+                    if (diff <= 0) {
+                        if (leftCancelBtn) leftCancelBtn.disabled = true;
+                        if (sideCancelBtn) sideCancelBtn.disabled = true;
+                        if (timerEl) timerEl.textContent = '';
+                        try { if (window.cancelTimerInterval) { clearInterval(window.cancelTimerInterval); window.cancelTimerInterval = null; } } catch (e) {}
+                        return;
+                    }
+                    const mins = Math.floor(diff/60000);
+                    const secs = Math.floor((diff%60000)/1000);
+                    if (timerEl) timerEl.textContent = `Cancel window: ${mins}:${secs.toString().padStart(2,'0')}`;
+                    if (leftCancelBtn) leftCancelBtn.disabled = false;
+                    if (sideCancelBtn) sideCancelBtn.disabled = false;
+                }
+
+                update();
+                window.cancelTimerInterval = setInterval(update, 1000);
+            } catch (e) { console.warn('setupCancelButtonTimer error', e); }
+        }
+
+        // Clear active ride UI and reset related state (chat, timers, panels)
+        function clearActiveRideUI() {
+            try {
+                currentRide = null;
+                const activeBox = document.getElementById('activeRideSection'); if (activeBox) activeBox.style.display = 'none';
+                const chatInput = document.getElementById('chatInput'); if (chatInput) chatInput.disabled = true;
+                const sendBtn = document.querySelector('.send-btn'); if (sendBtn) sendBtn.disabled = true;
+                const rideInfoPanel = document.getElementById('rideInfoPanel'); if (rideInfoPanel) rideInfoPanel.style.display = 'none';
+                const rideSummary = document.getElementById('rideSummary'); if (rideSummary) rideSummary.textContent = 'No active ride';
+                const cancelSideBtn = document.getElementById('cancelRideBtnSide'); if (cancelSideBtn) { cancelSideBtn.style.display = 'none'; cancelSideBtn.disabled = true; }
+                const endSideBtn = document.getElementById('endRideBtnSide'); if (endSideBtn) { endSideBtn.style.display = 'none'; endSideBtn.disabled = true; }
+                const cancelLeftBtn = document.getElementById('cancelRideBtn'); if (cancelLeftBtn) cancelLeftBtn.disabled = true;
+                const endLeftBtn = document.getElementById('endRideBtn'); if (endLeftBtn) endLeftBtn.disabled = true;
+                // clear cancel timer
+                try { setupCancelButtonTimer(null); } catch (e) {}
+            } catch (e) { console.warn('clearActiveRideUI error', e); }
+        }
 
         // When joining, server may send all active offers
         socket.on('activeDriverOffers', (payload) => {
@@ -1379,6 +1925,7 @@
                     socket.emit('authenticate', userData.id);
                     // join a per-user room so server can target room emits without strict auth
                     socket.emit('joinUserRoom', userData.id);
+                    console.log('socket: emitted authenticate and joinUserRoom for', userData.id);
                 }
             } catch (e) {
                 console.warn('Failed to authenticate socket:', e);
@@ -1391,6 +1938,10 @@
 
             // Initialize map
             initializeMap();
+            // Load any existing active/matched rides so UI persists after refresh
+            try { loadMyRidesOnLoad(); } catch (e) { console.warn('Could not load existing rides on load', e); }
+            // Also attempt to populate Captain panel if this user is an approved driver
+            try { loadCaptainActiveOnLoad(); } catch (e) { console.warn('Could not load captain active ride on load', e); }
 
             // Refresh authoritative user state (driver application status, approval)
             refreshUserData().then(() => {
@@ -1502,8 +2053,82 @@
                 renderDriverTab();
                 // update driver application status UI if present
                 updateDriverApplicationStatusUI();
+                // Load announcements after user data has been refreshed
+                try { loadAnnouncements(); } catch (e) { console.warn('loadAnnouncements failed', e); }
             } catch (err) {
                 console.warn('refreshUserData error', err);
+            }
+        }
+
+        // Fetch announcements from server and render them into the Announcements tab
+        async function loadAnnouncements() {
+            try {
+                const res = await fetch('/api/announcements');
+                if (!res.ok) {
+                    console.warn('/api/announcements returned', res.status);
+                    return;
+                }
+                const json = await res.json();
+                const list = json && json.announcements ? json.announcements : [];
+                // Clear existing
+                const notificationsList = document.getElementById('notificationsList');
+                const eventsList = document.getElementById('eventsList');
+                if (notificationsList) notificationsList.innerHTML = '';
+                if (eventsList) eventsList.innerHTML = '';
+
+                for (const ann of list) {
+                    appendAnnouncementToUI(ann, false);
+                }
+            } catch (e) {
+                console.warn('loadAnnouncements error', e);
+            }
+        }
+
+        function appendAnnouncementToUI(ann, prepend) {
+            try {
+                if (!ann) return;
+                const notificationsList = document.getElementById('notificationsList');
+                const eventsList = document.getElementById('eventsList');
+                const type = (ann.type || 'system').toLowerCase();
+                const createdAt = ann.created_at ? new Date(ann.created_at) : (ann.event_date ? new Date(ann.event_date) : null);
+                const dateText = createdAt ? createdAt.toLocaleString() : '';
+
+                if (type === 'event') {
+                    if (!eventsList) return;
+                    const div = document.createElement('div');
+                    div.id = 'announcement-' + (ann.id || Math.floor(Math.random()*1000000));
+                    div.className = 'event-item';
+                    const h = document.createElement('h4');
+                    h.textContent = '📅 ' + (ann.title || 'Event');
+                    const p = document.createElement('p');
+                    p.textContent = ann.message || '';
+                    const s = document.createElement('span');
+                    s.className = 'event-date';
+                    s.textContent = dateText;
+                    div.appendChild(h);
+                    div.appendChild(p);
+                    div.appendChild(s);
+                    if (prepend) eventsList.prepend(div); else eventsList.appendChild(div);
+                } else {
+                    if (!notificationsList) return;
+                    const div = document.createElement('div');
+                    div.id = 'announcement-' + (ann.id || Math.floor(Math.random()*1000000));
+                    div.className = 'notification-item info';
+                    const h = document.createElement('h4');
+                    h.textContent = ann.title || 'Announcement';
+                    const p = document.createElement('p');
+                    p.textContent = ann.message || '';
+                    const meta = document.createElement('div');
+                    meta.style.fontSize = '0.85rem';
+                    meta.style.color = '#64748b';
+                    meta.textContent = dateText;
+                    div.appendChild(h);
+                    div.appendChild(p);
+                    div.appendChild(meta);
+                    if (prepend) notificationsList.prepend(div); else notificationsList.appendChild(div);
+                }
+            } catch (e) {
+                console.warn('appendAnnouncementToUI error', e);
             }
         }
 
@@ -1572,24 +2197,43 @@
 
             if (!controls || !appContainer) return;
 
-            const isDriver = userData && userData.isActiveDriver;
+            // consider user an active driver if explicitly flagged or if their application status is 'approved'
+            const isDriver = Boolean((userData && userData.isActiveDriver) || (userData && String(userData.driverStatus) === 'approved') || (userData && userData.accountType === 'driver'));
             const hasApp = userData && (userData.driverStatus || userData.driverAppId);
             const status = (userData && userData.driverStatus) || null;
+
+            // initialize driverIsAvailable from authoritative userData if present
+            try { driverIsAvailable = !!(userData && userData.isOnline); } catch (e) { driverIsAvailable = false; }
+            console.debug('renderDriverTab: isDriver?', isDriver, 'driverIsAvailable=', driverIsAvailable, 'userData=', userData && {id:userData.id, driverStatus:userData.driverStatus, isActiveDriver:userData.isActiveDriver, isOnline:userData.isOnline});
+
             if (isDriver) {
                 // hide application form, show controls
                 appContainer.style.display = 'none';
                 controls.style.display = 'block';
-                statusBadge.textContent = userData.isOnline ? 'Online' : 'Offline';
-                toggleBtn.textContent = userData.isOnline ? 'Go Offline' : 'Go Online';
-                // wire toggle
-                toggleBtn.onclick = toggleDriverAvailabilityFromStudent;
-                // load available rides
-                loadAvailableRidesForDriver();
+
+                // update status badge and toggle text based on runtime state
+                statusBadge.textContent = driverIsAvailable ? 'Online' : 'Offline';
+                if (toggleBtn) {
+                    toggleBtn.style.display = 'inline-block';
+                    toggleBtn.textContent = driverIsAvailable ? 'Go Offline' : 'Go Online';
+                    toggleBtn.onclick = toggleDriverAvailabilityFromStudent;
+                }
+
+                // update footer message area so it lines up with the toggle button
+                try { const footMsg = document.getElementById('driverFooterMessage'); if (footMsg) footMsg.textContent = driverIsAvailable ? '' : 'You are offline. Go online to see ride requests.'; } catch(e){}
+
+                // ensure the controls box expansion matches availability
+                if (driverIsAvailable) controls.classList.add('expanded'); else controls.classList.remove('expanded');
+
+                // show / hide offer button based on availability
+                const offerBtn = document.getElementById('offerFromMapBtn'); if (offerBtn) offerBtn.style.display = driverIsAvailable ? 'inline-block' : 'none';
+
+                // load available rides only when online
+                if (driverIsAvailable) loadAvailableRidesForDriver();
             } else if (hasApp && status === 'pending') {
-                // application pending: hide form (already applied) and show status only
+                // application pending: hide controls and show form in disabled state
                 appContainer.style.display = 'block';
                 controls.style.display = 'none';
-                // keep form visually present but disabled to prevent duplicate submits
                 Array.from(appContainer.querySelectorAll('input,select,button,textarea')).forEach(el => el.disabled = true);
             } else {
                 // no application or rejected: allow applying (re-enable form controls)
@@ -1606,20 +2250,52 @@
             const btn = document.getElementById('toggleDriverAvailBtn');
             const statusBadge = document.getElementById('driverStatusBadge');
             driverIsAvailable = !driverIsAvailable;
-            if (driverIsAvailable) {
-                btn.textContent = 'Go Offline';
-                statusBadge.textContent = 'Online';
-                // inform server
-                const loc = (navigator.geolocation) ? { lat: (userLocation||{}).lat, lng: (userLocation||{}).lng } : null;
-                socket.emit('driverOnline', { driverId: userData.id, location: loc });
-                loadAvailableRidesForDriver();
-            } else {
-                btn.textContent = 'Go Online';
-                statusBadge.textContent = 'Offline';
-                socket.emit('driverOffline', userData.id);
-                document.getElementById('driverAvailableRides').innerHTML = '<div style="color:#64748b; padding:1rem;">You are offline. Go online to see ride requests.</div>';
+            if (btn) btn.style.display = 'inline-block';
+            const container = document.getElementById('driverControlsContainer');
+            const offerBtn = document.getElementById('offerFromMapBtn');
+            const availBox = document.getElementById('driverAvailableRides');
+                if (driverIsAvailable) {
+                    btn.textContent = 'Go Offline';
+                    statusBadge.textContent = 'Online';
+                    // persist online state locally
+                    try { userData.isOnline = true; sessionStorage.setItem('userData', JSON.stringify(userData)); } catch (e) { console.warn('Could not persist driver online state', e); }
+                    // expand controls box
+                    if (container) container.classList.add('expanded');
+                    if (offerBtn) { offerBtn.style.display = 'inline-block'; }
+                    // clear footer message
+                    try { const footMsg = document.getElementById('driverFooterMessage'); if (footMsg) footMsg.textContent = ''; } catch(e){}
+                    // inform server
+                    const loc = (navigator.geolocation) ? { lat: (userLocation||{}).lat, lng: (userLocation||{}).lng } : null;
+                    socket.emit('driverOnline', { driverId: userData.id, location: loc });
+                    // load available rides into the body
+                    loadAvailableRidesForDriver();
+                    if (availBox) availBox.style.display = 'block';
+                    console.debug('Driver set online (from toggle)');
+                } else {
+                    btn.textContent = 'Go Online';
+                    if (btn) btn.style.display = 'inline-block';
+                    statusBadge.textContent = 'Offline';
+                    // persist offline state locally
+                    try { userData.isOnline = false; sessionStorage.setItem('userData', JSON.stringify(userData)); } catch (e) { console.warn('Could not persist driver offline state', e); }
+                    // collapse controls box
+                    if (container) container.classList.remove('expanded');
+                    if (offerBtn) { offerBtn.style.display = 'none'; }
+                    socket.emit('driverOffline', userData.id);
+                    // show offline message in the available rides area and in footer
+                    if (availBox) availBox.innerHTML = '<div style="color:#64748b; padding:1rem;">You are offline. Go online to see ride requests.</div>';
+                    try { const footMsg = document.getElementById('driverFooterMessage'); if (footMsg) footMsg.textContent = 'You are offline. Go online to see ride requests.'; } catch(e){}
+                    console.debug('Driver set offline (from toggle)');
+                    // ensure footer (toggle) is in view after collapsing
+                    try {
+                        if (container) {
+                            const footer = container.querySelector('.controls-footer');
+                            if (footer && footer.scrollIntoView) footer.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                        }
+                    } catch (e) { console.warn('Could not scroll footer into view', e); }
+                    // ensure button remains visible and enabled
+                    try { if (btn) { btn.style.display = 'inline-block'; btn.disabled = false; } } catch (e) { console.warn('Could not ensure toggle visibility', e); }
+                }
             }
-        }
 
         // Create an offer at a chosen location (driver action)
         function createOfferAt(lat, lng) {
@@ -1751,6 +2427,7 @@
         }
 
         // Load available rides and render them for the approved driver
+        // Captain tab helper buttons are wired dynamically when a ride is populated
         async function loadAvailableRidesForDriver() {
             const container = document.getElementById('driverAvailableRides');
             if (!container) return;
@@ -1799,15 +2476,12 @@
                 const data = await res.json();
                 if (!res.ok) return alert('Failed to accept ride: ' + (data.error || 'Unknown'));
 
-                // Show active ride info
-                const activeBox = document.getElementById('driverActiveInfo');
-                const details = document.getElementById('driverActiveRideDetails');
-                activeBox.style.display = 'block';
-                details.innerHTML = `Passenger: ${data.ride.student_name || ''} <br> Pickup: ${data.ride.pickup_location} <br> Destination: ${data.ride.destination_location}`;
-
+                // Use new right-side panel for active ride info
+                currentRide = data.ride;
+                try { populateRideInfoPanel(data.ride); } catch (e) { console.warn('populateRideInfoPanel after accept failed', e); }
+                try { socket.emit('joinRideRoom', data.ride.id); } catch (e) {}
                 // Emit acceptance to server for real-time notification
                 socket.emit('acceptRide', { rideId: data.ride.id, driverId: userData.id });
-
                 // Refresh available rides
                 loadAvailableRidesForDriver();
             } catch (err) {
@@ -2360,6 +3034,7 @@
             
             if (message && currentRide) {
                 addChatMessage(message, 'sent');
+                console.log('chat: sending', { rideId: currentRide.id, senderId: userData.id, message });
                 socket.emit('chatMessage', {
                     rideId: currentRide.id,
                     senderId: userData.id,
@@ -2517,13 +3192,13 @@
 
         // Socket Events
         socket.on('chatMessage', (data) => {
-            addChatMessage(data.message, 'received', 'Driver');
+            console.log('chat: received', data);
+            // Determine sender label
+            const senderLabel = (userData && String(data.senderId) === String(userData.id)) ? 'You' : (currentRide && String(data.senderId) === String(currentRide.driver_id) ? 'Driver' : 'Passenger');
+            addChatMessage(data.message, 'received', senderLabel);
         });
 
-        socket.on('rideAccepted', (data) => {
-            document.getElementById('driverName').textContent = data.driverName;
-            addChatMessage('Driver accepted your ride!', 'received', 'System');
-        });
+        // rideAccepted is handled earlier with the full ride payload (enables chat and joins room)
 
         // When any driverStatusUpdated comes in, re-render driver tab (refreshUserData already called in handler)
         socket.on('driverStatusUpdated', (d) => {

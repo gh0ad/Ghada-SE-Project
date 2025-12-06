@@ -522,9 +522,11 @@
                         <span class="info-icon">🎯</span>
                         <span id="activeDestination">Destination</span>
                     </div>
-                    <button class="complete-btn" onclick="completeRide()">
-                        Complete Ride
-                    </button>
+                    <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
+                        <button class="complete-btn" id="cancelRideBtnDriver" style="background:#ef4444;" onclick="cancelCurrentRideDriver()" disabled>Cancel Ride</button>
+                        <button class="complete-btn" id="endRideBtnDriver" style="background:#10b981;" onclick="endCurrentRideDriver()" disabled>End Ride</button>
+                        <div id="cancelWindowTimerDriver" style="margin-left:8px; color:#92400e;"></div>
+                    </div>
                 </div>
             </div>
 
@@ -550,11 +552,11 @@
         <!-- Chat Panel -->
         <div class="chat-panel">
             <div class="chat-header">
-                💬 Chat with Student
+                💬 Chat
             </div>
             <div class="chat-messages" id="chatMessages">
                 <div class="message received">
-                    <div class="message-bubble">Accept a ride to start chatting with students.</div>
+                    <div class="message-bubble">There must be an active ride to use the chat.</div>
                     <div class="message-time">System</div>
                 </div>
             </div>
@@ -739,6 +741,8 @@
             
             // Load available rides
             loadRideRequests();
+            // Also load any active/matched rides for this driver so UI persists across refresh
+            try { loadDriverActiveOnLoad(); } catch (e) { console.warn('Could not load driver active ride on load', e); }
         };
 
         // Load Ride Requests from API
@@ -797,6 +801,58 @@
             }
         }
 
+        // Load any active/matched ride for this driver on load so UI persists after refresh
+        async function loadDriverActiveOnLoad() {
+            try {
+                if (!userData || !userData.id) return;
+                const res = await fetch(`/api/rides/driver/${userData.id}`);
+                if (!res.ok) return;
+                const d = await res.json();
+                const rides = d.rides || [];
+                const active = rides.find(r => r.status === 'active') || rides.find(r => r.status === 'matched');
+                if (active) {
+                    currentRide = active;
+                    document.getElementById('activeRide').style.display = 'block';
+                    document.getElementById('activeStudentName').textContent = active.student_name || 'Student';
+                    document.getElementById('activeStudentInfo').textContent = active.student_phone ? `📞 ${active.student_phone}` : 'Student • Verified';
+                    document.getElementById('activePickup').textContent = active.pickup_location || '-';
+                    document.getElementById('activeDestination').textContent = active.destination_location || '-';
+                    document.getElementById('chatInput').disabled = false;
+                    document.getElementById('sendBtn').disabled = false;
+                    try { socket.emit('joinRideRoom', active.id); } catch (e) {}
+                    // enable end button
+                    try { document.getElementById('endRideBtnDriver').disabled = false; } catch (e) {}
+                    // setup cancel timer
+                    setupCancelButtonTimerDriver(active);
+                }
+            } catch (e) { console.warn('loadDriverActiveOnLoad error', e); }
+        }
+
+        function setupCancelButtonTimerDriver(ride) {
+            try {
+                const cancelBtn = document.getElementById('cancelRideBtnDriver');
+                const timerEl = document.getElementById('cancelWindowTimerDriver');
+                if (!ride || !ride.accepted_at) {
+                    if (cancelBtn) cancelBtn.disabled = true;
+                    if (timerEl) timerEl.textContent = '';
+                    return;
+                }
+                const acceptedAt = new Date(ride.accepted_at);
+                const expiresAt = new Date(acceptedAt.getTime() + 2*60*1000);
+                function update() {
+                    const now = new Date();
+                    const diff = expiresAt - now;
+                    if (diff <= 0) { if (cancelBtn) cancelBtn.disabled = true; if (timerEl) timerEl.textContent = ''; clearInterval(timerInterval); return; }
+                    const mins = Math.floor(diff/60000);
+                    const secs = Math.floor((diff%60000)/1000);
+                    if (timerEl) timerEl.textContent = `Cancel window: ${mins}:${secs.toString().padStart(2,'0')}`;
+                    if (cancelBtn) cancelBtn.disabled = false;
+                }
+                update();
+                const timerInterval = setInterval(update, 1000);
+            } catch (e) { console.warn('setupCancelButtonTimerDriver error', e); }
+        }
+
         // Listen for new ride requests
         socket.on('newRideRequest', (data) => {
             loadRideRequests(); // Refresh the list
@@ -816,14 +872,39 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    currentRide = { id: rideId, name: studentName, pickup, destination, fare: fare.toString() };
+                    // Prefer authoritative ride object returned by the server
+                    const rideObj = (data && data.ride) ? data.ride : data;
+                    currentRide = {
+                        id: rideObj.id || rideId,
+                        name: rideObj.student_name || studentName,
+                        pickup: rideObj.pickup_location || pickup,
+                        destination: rideObj.destination_location || destination,
+                        fare: (rideObj.fare !== undefined ? String(rideObj.fare) : (fare !== undefined ? String(fare) : '0'))
+                    };
 
-            
-            document.getElementById('activeRide').style.display = 'block';
-            document.getElementById('activeStudentName').textContent = studentName;
-            document.getElementById('activeStudentInfo').textContent = 'Student • Verified';
-            document.getElementById('activePickup').textContent = pickup;
-            document.getElementById('activeDestination').textContent = destination;
+                    // Update active ride UI with passenger details from server
+                    document.getElementById('activeRide').style.display = 'block';
+                    document.getElementById('activeStudentName').textContent = rideObj.student_name || studentName;
+                    document.getElementById('activeStudentInfo').textContent = rideObj.student_phone ? `📞 ${rideObj.student_phone}` : 'Student • Verified';
+                    document.getElementById('activePickup').textContent = rideObj.pickup_location || pickup;
+                    document.getElementById('activeDestination').textContent = rideObj.destination_location || destination;
+
+                    // Show avatar if provided
+                    const avatarEl = document.querySelector('#activeRide .student-avatar');
+                    if (avatarEl) {
+                        if (rideObj.student_avatar) {
+                            avatarEl.innerHTML = `<img src="${rideObj.student_avatar}" alt="avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+                        } else {
+                            avatarEl.innerHTML = '👨‍🎓';
+                        }
+                    }
+
+                    // Join the ride-specific socket room so driver receives ride chat messages
+                    try {
+                        socket.emit('joinRideRoom', currentRide.id);
+                    } catch (e) {
+                        console.warn('Failed to join ride room:', e);
+                    }
             
             // Hide other requests
             document.getElementById('requestsList').innerHTML = `
@@ -886,52 +967,86 @@
             if (!currentRide) return;
             
             try {
-                const response = await fetch(`/api/rides/${currentRide.id}/complete`, {
+                // Use new /end endpoint so passengers can also trigger end
+                const response = await fetch(`/api/rides/${currentRide.id}/end`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        driverId: userData.id,
-                        fare: parseFloat(currentRide.fare)
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userData.id, fare: parseFloat(currentRide.fare) })
                 });
 
                 const data = await response.json();
 
                 if (response.ok) {
-                    const fareAmount = parseFloat(currentRide.fare);
+                    const fareAmount = parseFloat(currentRide.fare) || 0;
                     earnings += fareAmount;
                     ridesCompleted += 1;
-                    
                     document.getElementById('earnings').textContent = `$${earnings.toFixed(2)}`;
                     document.getElementById('ridesCompleted').textContent = ridesCompleted;
-                    
                     addChatMessage('Ride completed! Thank you for choosing Amam.', 'sent', 'System');
-                    
-                    socket.emit('rideCompleted', {
-                        rideId: currentRide.id
-                    });
-                    
-                    // Reset
+
+                    try { socket.emit('rideEnded', { rideId: currentRide.id }); } catch (e) {}
+
+                    // Reset UI
                     setTimeout(() => {
                         currentRide = null;
                         document.getElementById('activeRide').style.display = 'none';
                         document.getElementById('chatInput').disabled = true;
                         document.getElementById('sendBtn').disabled = true;
-                        
                         if (studentMarker) map.removeLayer(studentMarker);
                         if (routeLine) map.removeLayer(routeLine);
-                        
-                        if (isAvailable) {
-                            loadRideRequests();
-                        }
+                        if (isAvailable) loadRideRequests();
                     }, 2000);
+                } else {
+                    alert(data.error || 'Failed to complete ride');
                 }
             } catch (error) {
                 console.error('Error completing ride:', error);
                 alert('Failed to complete ride. Please try again.');
             }
+        }
+
+        // Cancel current ride (driver action) — allowed within 2 minutes of accept
+        async function cancelCurrentRideDriver() {
+            try {
+                if (!currentRide || !currentRide.id) return alert('No active ride to cancel');
+                const res = await fetch(`/api/rides/${currentRide.id}/cancel`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userData.id })
+                });
+                const d = await res.json();
+                if (!res.ok) return alert(d.error || 'Failed to cancel ride');
+                addChatMessage('Ride cancelled', 'sent', 'System');
+                currentRide = null;
+                document.getElementById('activeRide').style.display = 'none';
+                document.getElementById('chatInput').disabled = true;
+                document.getElementById('sendBtn').disabled = true;
+                if (studentMarker) map.removeLayer(studentMarker);
+                if (routeLine) map.removeLayer(routeLine);
+                loadRideRequests();
+            } catch (e) { console.error('cancelCurrentRideDriver error', e); alert('Network error'); }
+        }
+
+        // End current ride (driver action)
+        async function endCurrentRideDriver() {
+            try {
+                if (!currentRide || !currentRide.id) return alert('No active ride to end');
+                const res = await fetch(`/api/rides/${currentRide.id}/end`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userData.id, fare: parseFloat(currentRide.fare) })
+                });
+                const d = await res.json();
+                if (!res.ok) return alert(d.error || 'Failed to end ride');
+                addChatMessage('Ride ended', 'sent', 'System');
+                currentRide = null;
+                document.getElementById('activeRide').style.display = 'none';
+                document.getElementById('chatInput').disabled = true;
+                document.getElementById('sendBtn').disabled = true;
+                if (studentMarker) map.removeLayer(studentMarker);
+                if (routeLine) map.removeLayer(routeLine);
+                loadRideRequests();
+            } catch (e) { console.error('endCurrentRideDriver error', e); alert('Network error'); }
         }
 
         // Chat functionality
@@ -962,6 +1077,7 @@
             const message = chatInput.value.trim();
             if (message && currentRide) {
                 addChatMessage(message, 'sent');
+                console.log('chat: sending', { rideId: currentRide.id, senderId: userData.id, message });
                 socket.emit('chatMessage', {
                     rideId: currentRide.id,
                     senderId: userData.id,
@@ -980,7 +1096,42 @@
 
         // Socket.io events
         socket.on('chatMessage', (data) => {
+            console.log('chat: received', data);
             addChatMessage(data.message, 'received', 'Student');
+        });
+
+        socket.on('rideCancelled', (payload) => {
+            try {
+                const rideId = payload && payload.rideId ? payload.rideId : (payload && payload.ride && payload.ride.id ? payload.ride.id : null);
+                if (!rideId) return;
+                if (currentRide && String(currentRide.id) === String(rideId)) {
+                    addChatMessage('Ride was cancelled', 'received', 'System');
+                    currentRide = null;
+                    document.getElementById('activeRide').style.display = 'none';
+                    document.getElementById('chatInput').disabled = true;
+                    document.getElementById('sendBtn').disabled = true;
+                    if (studentMarker) map.removeLayer(studentMarker);
+                    if (routeLine) map.removeLayer(routeLine);
+                    loadRideRequests();
+                }
+            } catch (e) { console.warn('rideCancelled handler error', e); }
+        });
+
+        socket.on('rideEnded', (payload) => {
+            try {
+                const rideId = payload && payload.rideId ? payload.rideId : (payload && payload.ride && payload.ride.id ? payload.ride.id : null);
+                if (!rideId) return;
+                if (currentRide && String(currentRide.id) === String(rideId)) {
+                    addChatMessage('Ride ended', 'received', 'System');
+                    currentRide = null;
+                    document.getElementById('activeRide').style.display = 'none';
+                    document.getElementById('chatInput').disabled = true;
+                    document.getElementById('sendBtn').disabled = true;
+                    if (studentMarker) map.removeLayer(studentMarker);
+                    if (routeLine) map.removeLayer(routeLine);
+                    loadRideRequests();
+                }
+            } catch (e) { console.warn('rideEnded handler error', e); }
         });
 
         socket.on('newRideRequest', (data) => {
