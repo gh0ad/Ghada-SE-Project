@@ -4,153 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up - Amam</title>
+    <link rel="stylesheet" href="/assets/auth.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        /* Additional styles specific to signup */
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            /* Fallback gradient if no image provided */
-            background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem;
-            position: relative;
-            /* Allow scrolling on small screens so footer/login link is reachable */
-            overflow: auto;
-        }
-
-        /* Background image layer. Drop your image at `public/assets/signup-bg.jpg` to use it. */
-        body::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background-image: url('/assets/signup-bg.jpg');
-            background-size: cover;
-            background-position: center center;
-            background-repeat: no-repeat;
-            opacity: 0.18;
-            z-index: 0;
-        }
-
-        body::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            /* Themed blue overlay matching the site's gradient */
-            background: rgba(37, 99, 235, 0.32); /* #2563eb */
-            z-index: 0;
-            mix-blend-mode: multiply;
-        }
-
-        .signup-container {
-            background: rgba(255,255,255,0.98);
-            border-radius: 30px;
-            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
-            width: 100%;
-            max-width: 550px;
-            padding: 3rem 2.5rem;
-            /* Keep container fully visible on small viewports */
-            max-height: calc(100vh - 4rem);
-            overflow-y: auto;
-            animation: slideUp 0.6s ease-out;
-            position: relative;
-            z-index: 1;
-            backdrop-filter: blur(4px);
-        }
-
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .logo-section {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        .logo {
-            font-size: 3rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .logo-text {
-            font-size: 2rem;
-            font-weight: bold;
-            background: linear-gradient(135deg, #1e40af, #3b82f6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 0.5rem;
-        }
-
-        .welcome-text {
-            color: #64748b;
-            font-size: 0.95rem;
+            overflow: auto; /* Allow scrolling for signup form */
         }
 
         .form-group {
             margin-bottom: 1.25rem;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            color: #1e3a8a;
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-
-        .input-wrapper {
-            position: relative;
-        }
-
-        .form-input {
-            width: 100%;
-            padding: 0.875rem;
-            border: 2px solid #e2e8f0;
-            border-radius: 10px;
-            font-size: 0.95rem;
-            transition: all 0.3s;
-        }
-
-        .form-input:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-
-        select.form-input {
-            cursor: pointer;
-        }
-
-        .signup-button {
-            width: 100%;
-            padding: 1rem;
-            background: linear-gradient(135deg, #2563eb, #3b82f6);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 1.05rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            margin-top: 1rem;
-        }
-
-        .signup-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3);
         }
 
         .login-text {
