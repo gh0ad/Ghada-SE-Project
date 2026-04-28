@@ -5,9 +5,7 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const path = require('path');
 const { Pool } = require('pg');
-const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 
@@ -17,6 +15,157 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'amam_secret_key';
+const ADMIN_KEY = process.env.ADMIN_KEY || null;
+
+// Helper utilities for authentication and socket/event delivery
+function getAuthHeader(req) {
+    return req.headers.authorization || req.headers.Authorization || '';
+}
+
+function getBearerToken(req) {
+    const auth = getAuthHeader(req);
+    return auth && auth.startsWith('Bearer ') ? auth.slice(7) : null;
+}
+
+function verifyToken(token) {
+    return jwt.verify(token, JWT_SECRET);
+}
+
+function getUserIdFromPayload(payload) {
+    return payload && (payload.userId || payload.userID || payload.id);
+}
+
+function getRequestUserId(req) {
+    try {
+        const token = getBearerToken(req);
+        if (!token) return null;
+        const payload = verifyToken(token);
+        return getUserIdFromPayload(payload);
+    } catch (e) {
+        return null;
+    }
+}
+
+function mapUserRow(row) {
+    return {
+        id: row.id,
+        username: row.username,
+        fullName: row.full_name || row.fullName || null,
+        phone: row.phone,
+        gender: row.gender,
+        avatar: row.avatar,
+        email: row.email,
+        studentId: row.student_id,
+        university: row.university,
+        major: row.major,
+        accountType: row.account_type,
+        isVerified: row.is_verified,
+        driverAppId: row.driver_app_id,
+        hasDriverApp: !!row.driver_app_id,
+        driverStatus: row.driver_status,
+        isActiveDriver: row.is_active_driver,
+        driverStats: row.is_active_driver ? {
+            totalRides: row.total_rides,
+            rating: parseFloat(row.rating || 0),
+            totalEarnings: parseFloat(row.total_earnings || 0)
+        } : null
+    };
+}
+
+const announcementsTableSql = `CREATE TABLE IF NOT EXISTS announcements (
+    id SERIAL PRIMARY KEY,
+    title TEXT,
+    message TEXT,
+    type VARCHAR(50) DEFAULT 'system',
+    event_date TIMESTAMP NULL,
+    created_by TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP
+)`;
+
+const ticketsTableSql = `CREATE TABLE IF NOT EXISTS tickets (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT,
+    type VARCHAR(100),
+    subject TEXT,
+    body TEXT,
+    status VARCHAR(50) DEFAULT 'open',
+    admin_reply TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP
+)`;
+
+const reviewsTableSql = `CREATE TABLE IF NOT EXISTS reviews (
+    id SERIAL PRIMARY KEY,
+    ride_id INTEGER,
+    reviewer_id TEXT,
+    target_id TEXT,
+    rating INTEGER,
+    comment TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+)`;
+
+async function ensureTable(sql) {
+    return pool.query(sql);
+}
+
+function queuePendingNotification(userId, event, payload) {
+    const pending = pendingNotifications.get(userId) || [];
+    pending.push({ event, payload });
+    pendingNotifications.set(userId, pending);
+}
+
+function emitToUser(userId, event, payload) {
+    let delivered = false;
+    const socketId = activeSockets.get(userId);
+    if (socketId) {
+        try {
+            io.to(socketId).emit(event, payload);
+            delivered = true;
+        } catch (e) {
+            console.warn(`Direct emit ${event} to user ${userId} failed`, e);
+        }
+    }
+
+    try {
+        const room = `user:${userId}`;
+        const roomSet = io.sockets.adapter.rooms.get(room);
+        if (roomSet && roomSet.size > 0) {
+            io.to(room).emit(event, payload);
+            delivered = true;
+        }
+    } catch (e) {
+        console.warn(`Room emit ${event} for user ${userId} failed`, e);
+    }
+
+    if (!delivered) {
+        queuePendingNotification(userId, event, payload);
+    }
+    return delivered;
+}
+
+async function getAdminIds() {
+    const result = await pool.query("SELECT id FROM users WHERE account_type = 'admin'");
+    return result.rows.map((row) => row.id);
+}
+
+async function notifyAdmins(event, payload) {
+    try {
+        io.to('admins').emit(event, payload);
+    } catch (e) {
+        console.warn(`Admin room emit ${event} failed`, e);
+    }
+
+    const adminIds = await getAdminIds();
+    for (const adminId of adminIds) {
+        emitToUser(adminId, event, payload);
+    }
+}
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static('public'));
+app.use(express.static(__dirname));
 
 // Initialize Supabase Auth client
 const supabase = createClient(
@@ -48,23 +197,19 @@ app.use(express.static(__dirname));
 // Admin authorization middleware
 function requireAdmin(req, res, next) {
     try {
-        const adminKey = process.env.ADMIN_KEY;
-        // 1) If ADMIN_KEY is set, allow requests that present it via header `x-admin-key` or query param
-        if (adminKey) {
-            const provided = req.headers['x-admin-key'] || req.query.adminKey || req.body && req.body.adminKey;
-            if (provided && provided === adminKey) return next();
+        if (ADMIN_KEY) {
+            const provided = req.headers['x-admin-key'] || req.query.adminKey || (req.body && req.body.adminKey);
+            if (provided && provided === ADMIN_KEY) return next();
             return res.status(401).json({ error: 'Missing or invalid admin key' });
         }
 
-        // 2) Otherwise, accept a Bearer JWT and verify accountType or role === 'admin'
-        const auth = req.headers.authorization || req.headers.Authorization;
-        if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing admin token' });
-        const token = auth.split(' ')[1];
+        const token = getBearerToken(req);
+        if (!token) return res.status(401).json({ error: 'Missing admin token' });
+
         try {
-            const payload = jwt.verify(token, JWT_SECRET);
+            const payload = verifyToken(token);
             if (payload && (payload.accountType === 'admin' || payload.role === 'admin')) {
-                // attach adminId for downstream handlers
-                req.adminId = payload.userId || payload.userID || payload.id;
+                req.adminId = getUserIdFromPayload(payload);
                 return next();
             }
             return res.status(403).json({ error: 'Not an admin' });
@@ -289,40 +434,15 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ error: 'User profile not found' });
         }
         
-        const user = result.rows[0];
+        const user = mapUserRow(result.rows[0]);
         
         const token = jwt.sign(
-            { userId: user.id, email: user.email, accountType: user.account_type },
+            { userId: user.id, email: user.email, accountType: user.accountType },
             JWT_SECRET,
             { expiresIn: '7d' }
         );
         
-        res.json({
-            success: true,
-            token,
-            user: {
-                id: user.id,
-                username: user.username,
-                fullName: user.full_name || user.fullName || null,
-                phone: user.phone,
-                gender: user.gender,
-                avatar: user.avatar,
-                email: user.email,
-                studentId: user.student_id,
-                university: user.university,
-                major: user.major,
-                accountType: user.account_type,
-                isVerified: user.is_verified,
-                hasDriverApp: !!user.driver_app_id,
-                driverStatus: user.driver_status,
-                isActiveDriver: user.is_active_driver,
-                driverStats: user.is_active_driver ? {
-                    totalRides: user.total_rides,
-                    rating: parseFloat(user.rating),
-                    totalEarnings: parseFloat(user.total_earnings)
-                } : null
-            }
-        });
+        res.json({ success: true, token, user });
     } catch (error) {
         console.error('Login error:', error);
 
@@ -450,16 +570,7 @@ app.post('/api/announcements', requireAdmin, async (req, res) => {
         const { title, message, type, eventDate, adminId } = req.body || {};
         if (!title || !message) return res.status(400).json({ error: 'Missing title or message' });
 
-        // Ensure announcements table exists
-        await pool.query(`CREATE TABLE IF NOT EXISTS announcements (
-            id SERIAL PRIMARY KEY,
-            title TEXT,
-            message TEXT,
-            type VARCHAR(50) DEFAULT 'system',
-            event_date TIMESTAMP NULL,
-            created_by TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-        )`);
+        await ensureTable(announcementsTableSql);
 
         const insert = await pool.query(
             `INSERT INTO announcements (title, message, type, event_date, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
@@ -480,15 +591,7 @@ app.post('/api/announcements', requireAdmin, async (req, res) => {
 
 app.get('/api/announcements', async (req, res) => {
     try {
-        await pool.query(`CREATE TABLE IF NOT EXISTS announcements (
-            id SERIAL PRIMARY KEY,
-            title TEXT,
-            message TEXT,
-            type VARCHAR(50) DEFAULT 'system',
-            event_date TIMESTAMP NULL,
-            created_by TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-        )`);
+        await ensureTable(announcementsTableSql);
 
         const r = await pool.query('SELECT * FROM announcements ORDER BY created_at DESC LIMIT 100');
         res.json({ announcements: r.rows });
@@ -505,15 +608,7 @@ app.put('/api/announcements/:id', requireAdmin, async (req, res) => {
         const { title, message, type, eventDate } = req.body || {};
         if (!title && !message && !type && !eventDate) return res.status(400).json({ error: 'No fields to update' });
 
-        await pool.query(`CREATE TABLE IF NOT EXISTS announcements (
-            id SERIAL PRIMARY KEY,
-            title TEXT,
-            message TEXT,
-            type VARCHAR(50) DEFAULT 'system',
-            event_date TIMESTAMP NULL,
-            created_by TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-        )`);
+        await ensureTable(announcementsTableSql);
 
         const fields = [];
         const params = [];
@@ -542,15 +637,7 @@ app.put('/api/announcements/:id', requireAdmin, async (req, res) => {
 app.delete('/api/announcements/:id', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        await pool.query(`CREATE TABLE IF NOT EXISTS announcements (
-            id SERIAL PRIMARY KEY,
-            title TEXT,
-            message TEXT,
-            type VARCHAR(50) DEFAULT 'system',
-            event_date TIMESTAMP NULL,
-            created_by TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-        )`);
+        await ensureTable(announcementsTableSql);
 
         const del = await pool.query('DELETE FROM announcements WHERE id = $1 RETURNING id', [id]);
         if (del.rows.length === 0) return res.status(404).json({ error: 'Announcement not found' });
@@ -587,18 +674,7 @@ app.post('/api/tickets', async (req, res) => {
         const { userId, type, subject, body } = req.body || {};
         if (!userId || !type || !subject || !body) return res.status(400).json({ error: 'Missing fields' });
 
-        // ensure tickets table exists (dev-friendly)
-        await pool.query(`CREATE TABLE IF NOT EXISTS tickets (
-            id SERIAL PRIMARY KEY,
-            user_id TEXT,
-            type VARCHAR(100),
-            subject TEXT,
-            body TEXT,
-            status VARCHAR(50) DEFAULT 'open',
-            admin_reply TEXT,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP
-        )`);
+        await ensureTable(ticketsTableSql);
 
         const insert = await pool.query(
             `INSERT INTO tickets (user_id, type, subject, body) VALUES ($1,$2,$3,$4) RETURNING *`,
@@ -607,26 +683,11 @@ app.post('/api/tickets', async (req, res) => {
 
         const ticket = insert.rows[0];
 
-        // Notify admins via socket room and queue for offline admins
         try {
-            io.to('admins').emit('newTicket', { ticket });
-        } catch (e) { console.warn('Failed to emit newTicket to admins room', e); }
-
-        // queue per-admin if offline
-        try {
-            const r = await pool.query("SELECT id FROM users WHERE account_type = 'admin'");
-            for (const row of r.rows) {
-                const adminId = row.id;
-                const sockId = activeSockets.get(adminId);
-                if (sockId && io && io.to) {
-                    try { io.to(sockId).emit('newTicket', { ticket }); } catch (e) { console.warn('Direct admin emit failed', e); }
-                } else {
-                    const arr = pendingNotifications.get(adminId) || [];
-                    arr.push({ type: 'newTicket', payload: ticket });
-                    pendingNotifications.set(adminId, arr);
-                }
-            }
-        } catch (e) { console.warn('Error delivering newTicket to admins', e); }
+            await notifyAdmins('newTicket', { ticket });
+        } catch (e) {
+            console.warn('Error delivering newTicket to admins', e);
+        }
 
         res.json({ success: true, ticket });
     } catch (e) {
@@ -639,17 +700,7 @@ app.post('/api/tickets', async (req, res) => {
 app.get('/api/users/:userId/tickets', async (req, res) => {
     try {
         const { userId } = req.params;
-        await pool.query(`CREATE TABLE IF NOT EXISTS tickets (
-            id SERIAL PRIMARY KEY,
-            user_id TEXT,
-            type VARCHAR(100),
-            subject TEXT,
-            body TEXT,
-            status VARCHAR(50) DEFAULT 'open',
-            admin_reply TEXT,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP
-        )`);
+        await ensureTable(ticketsTableSql);
 
         const r = await pool.query('SELECT * FROM tickets WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
         res.json({ tickets: r.rows });
@@ -680,36 +731,18 @@ app.post('/api/admin/tickets/:ticketId/review', requireAdmin, async (req, res) =
         const { adminId, status, adminReply } = req.body || {};
         if (!adminId || !status) return res.status(400).json({ error: 'Missing adminId or status' });
 
-        await pool.query(`CREATE TABLE IF NOT EXISTS tickets (
-            id SERIAL PRIMARY KEY,
-            user_id TEXT,
-            type VARCHAR(100),
-            subject TEXT,
-            body TEXT,
-            status VARCHAR(50) DEFAULT 'open',
-            admin_reply TEXT,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP
-        )`);
+        await ensureTable(ticketsTableSql);
 
         const upd = await pool.query('UPDATE tickets SET status = $1, admin_reply = $2, updated_at = NOW() WHERE id = $3 RETURNING *', [status, adminReply || null, ticketId]);
         if (upd.rows.length === 0) return res.status(404).json({ error: 'Ticket not found' });
 
         const ticket = upd.rows[0];
 
-        // Notify ticket owner
         try {
-            const room = `user:${ticket.user_id}`;
-            io.to(room).emit('ticketUpdated', { ticket });
-            const sock = activeSockets.get(ticket.user_id);
-            if (sock) io.to(sock).emit('ticketUpdated', { ticket });
-            // If not delivered, queue
-            if (!sock) {
-                const arr = pendingNotifications.get(ticket.user_id) || [];
-                arr.push({ type: 'ticketUpdated', payload: ticket });
-                pendingNotifications.set(ticket.user_id, arr);
-            }
-        } catch (e) { console.warn('Failed to notify ticket owner', e); }
+            emitToUser(ticket.user_id, 'ticketUpdated', { ticket });
+        } catch (e) {
+            console.warn('Failed to notify ticket owner', e);
+        }
 
         res.json({ success: true, ticket });
     } catch (e) {
@@ -738,52 +771,16 @@ app.post('/api/admin/review-driver', requireAdmin, async (req, res) => {
 
         // Notify applicant via Socket.IO if they are connected
         if (appRow && appRow.user_id) {
-            const userId = appRow.user_id;
-            const socketId = activeSockets.get(userId);
+            const targetUserId = appRow.user_id;
             const payload = {
                 applicationId,
                 status,
                 approved: !!approved,
                 reason: reason || null,
-                userId
+                userId: targetUserId
             };
             try {
-                // If specific socket is connected, emit directly for lower latency
-                // If a specific socketId mapping exists, emit directly
-                let delivered = false;
-                if (socketId && io && io.to) {
-                    try {
-                        io.to(socketId).emit('driverStatusUpdated', payload);
-                        console.log(`Emitted driverStatusUpdated to user ${userId} at socket ${socketId}`, payload);
-                        delivered = true;
-                    } catch (e) {
-                        console.warn('Direct emit failed', e.message || e);
-                    }
-                }
-
-                // Emit to the user's room as the primary scalable delivery method.
-                try {
-                    const room = `user:${userId}`;
-                    // If the room exists and has members, emit and mark delivered
-                    const roomSet = io.sockets.adapter.rooms.get(room);
-                    if (roomSet && roomSet.size > 0) {
-                        io.to(room).emit('driverStatusUpdated', payload);
-                        console.log(`Emitted driverStatusUpdated to room ${room}`, payload);
-                        delivered = true;
-                    } else {
-                        console.log(`Room ${room} has no members right now`);
-                    }
-                } catch (e) {
-                    console.warn('Failed to emit to user room:', e.message || e);
-                }
-
-                // If not delivered to any connected socket, store for replay when user reconnects/joins room
-                if (!delivered) {
-                    const arr = pendingNotifications.get(userId) || [];
-                    arr.push(payload);
-                    pendingNotifications.set(userId, arr);
-                    console.log(`Stored pending notification for user ${userId}. Total pending: ${arr.length}`);
-                }
+                emitToUser(targetUserId, 'driverStatusUpdated', payload);
             } catch (e) {
                 console.warn('Failed to emit driverStatusUpdated:', e.message || e);
             }
@@ -799,18 +796,8 @@ app.post('/api/admin/review-driver', requireAdmin, async (req, res) => {
 // Return the current user's profile based on JWT in Authorization header
 app.get('/api/users/me', async (req, res) => {
     try {
-        const auth = req.headers.authorization || req.headers.Authorization;
-        if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing token' });
-        const token = auth.split(' ')[1];
-        let payload;
-        try {
-            payload = jwt.verify(token, JWT_SECRET);
-        } catch (err) {
-            return res.status(401).json({ error: 'Invalid token' });
-        }
-
-        const userId = payload.userId || payload.userID || payload.id;
-        if (!userId) return res.status(400).json({ error: 'Invalid token payload' });
+        const userId = getRequestUserId(req);
+        if (!userId) return res.status(401).json({ error: 'Missing or invalid token' });
 
         const result = await pool.query(
             `SELECT u.*, 
@@ -829,31 +816,7 @@ app.get('/api/users/me', async (req, res) => {
 
         if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
-        const user = result.rows[0];
-
-        res.json({
-            id: user.id,
-            username: user.username,
-            fullName: user.full_name || user.fullName || null,
-            phone: user.phone,
-            gender: user.gender,
-            avatar: user.avatar,
-            email: user.email,
-            studentId: user.student_id,
-            university: user.university,
-            major: user.major,
-            phone: user.phone,
-            accountType: user.account_type,
-            isVerified: user.is_verified,
-            driverAppId: user.driver_app_id,
-            driverStatus: user.driver_status,
-            isActiveDriver: user.is_active_driver,
-            driverStats: user.is_active_driver ? {
-                totalRides: user.total_rides,
-                rating: parseFloat(user.rating || 0),
-                totalEarnings: parseFloat(user.total_earnings || 0)
-            } : null
-        });
+        res.json(mapUserRow(result.rows[0]));
     } catch (error) {
         console.error('Get /api/users/me error:', error);
         res.status(500).json({ error: 'Failed to get profile' });
@@ -863,15 +826,9 @@ app.get('/api/users/me', async (req, res) => {
 // Update current user's profile (protected)
 app.post('/api/users/update', async (req, res) => {
     try {
-        const auth = req.headers.authorization || req.headers.Authorization;
-        if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing token' });
-        const token = auth.split(' ')[1];
-        let payload;
-        try { payload = jwt.verify(token, JWT_SECRET); } catch (err) { return res.status(401).json({ error: 'Invalid token' }); }
-
-        const userId = payload.userId || payload.userID || payload.id;
+        const userId = getRequestUserId(req);
+        if (!userId) return res.status(401).json({ error: 'Missing or invalid token' });
         console.log(`/api/users/update called by userId=${userId}`);
-        if (!userId) return res.status(400).json({ error: 'Invalid token payload' });
 
         const { username, phone, major, gender, fullName, avatar } = req.body || {};
 
@@ -1027,24 +984,11 @@ app.post('/api/emergency', async (req, res) => {
         const { userId, location, message } = req.body || {};
         const alertPayload = { fromUserId: userId || null, location: location || null, message: message || 'Emergency alert', timestamp: Date.now() };
 
-        // Emit to admins room
-        try { io.to('admins').emit('emergencyAlert', alertPayload); } catch (e) { console.warn('Failed to emit to admins room', e); }
-
-        // Queue/deliver to admins by ID
         try {
-            const r = await pool.query("SELECT id FROM users WHERE account_type = 'admin'");
-            const admins = r.rows.map(row => row.id);
-            for (const adminId of admins) {
-                const sockId = activeSockets.get(adminId);
-                if (sockId && io && io.to) {
-                    try { io.to(sockId).emit('emergencyAlert', alertPayload); } catch (e) { console.warn('Direct admin emit failed', e); }
-                } else {
-                    const arr = pendingNotifications.get(adminId) || [];
-                    arr.push({ type: 'emergencyAlert', payload: alertPayload });
-                    pendingNotifications.set(adminId, arr);
-                }
-            }
-        } catch (e) { console.warn('Error delivering/queuing emergency via HTTP', e); }
+            await notifyAdmins('emergencyAlert', alertPayload);
+        } catch (e) {
+            console.warn('Error delivering/queuing emergency via HTTP', e);
+        }
 
         res.json({ success: true, alert: alertPayload });
     } catch (e) {
@@ -1294,15 +1238,7 @@ app.get('/api/rides/:rideId/reviews', async (req, res) => {
     try {
         const { rideId } = req.params;
         // ensure reviews table exists
-        await pool.query(`CREATE TABLE IF NOT EXISTS reviews (
-            id SERIAL PRIMARY KEY,
-            ride_id INTEGER,
-            reviewer_id TEXT,
-            target_id TEXT,
-            rating INTEGER,
-            comment TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-        )`);
+        await ensureTable(reviewsTableSql);
 
         const r = await pool.query('SELECT * FROM reviews WHERE ride_id = $1 ORDER BY created_at ASC', [rideId]);
         res.json({ reviews: r.rows });
@@ -1319,16 +1255,7 @@ app.post('/api/rides/:rideId/review', async (req, res) => {
         const { reviewerId, targetId, rating, comment } = req.body || {};
         if (!reviewerId || !targetId || !rating) return res.status(400).json({ error: 'Missing fields' });
 
-        // ensure reviews table exists
-        await pool.query(`CREATE TABLE IF NOT EXISTS reviews (
-            id SERIAL PRIMARY KEY,
-            ride_id INTEGER,
-            reviewer_id TEXT,
-            target_id TEXT,
-            rating INTEGER,
-            comment TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-        )`);
+        await ensureTable(reviewsTableSql);
 
         const insert = await pool.query(
             `INSERT INTO reviews (ride_id, reviewer_id, target_id, rating, comment) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
@@ -1412,29 +1339,8 @@ io.on('connection', (socket) => {
                 timestamp: Date.now()
             };
 
-            // 1) Emit to connected admins who joined the 'admins' room
             try {
-                io.to('admins').emit('emergencyAlert', alertPayload);
-            } catch (e) { console.warn('Failed to emit to admins room', e); }
-
-            // 2) Also query admin user IDs and deliver individually (store pending for offline admins)
-            try {
-                const r = await pool.query("SELECT id FROM users WHERE account_type = 'admin'");
-                const admins = r.rows.map(row => row.id);
-                for (const adminId of admins) {
-                    const sockId = activeSockets.get(adminId);
-                    if (sockId && io && io.to) {
-                        try {
-                            io.to(sockId).emit('emergencyAlert', alertPayload);
-                        } catch (e) { console.warn('Direct admin emit failed', e); }
-                    } else {
-                        // Queue for replay when admin connects
-                        const arr = pendingNotifications.get(adminId) || [];
-                        arr.push({ type: 'emergencyAlert', payload: alertPayload });
-                        pendingNotifications.set(adminId, arr);
-                        console.log(`Queued emergency alert for offline admin ${adminId}`);
-                    }
-                }
+                await notifyAdmins('emergencyAlert', alertPayload);
             } catch (e) {
                 console.warn('Failed querying admins for emergency delivery', e);
             }
@@ -1458,8 +1364,8 @@ io.on('connection', (socket) => {
             try {
                 const pending = pendingNotifications.get(userId);
                 if (pending && pending.length > 0) {
-                    pending.forEach(p => {
-                        try { io.to(room).emit('driverStatusUpdated', p); } catch (e) { console.warn('Replay emit failed', e); }
+                    pending.forEach(notification => {
+                        try { io.to(room).emit(notification.event, notification.payload); } catch (e) { console.warn('Replay emit failed', e); }
                     });
                     pendingNotifications.delete(userId);
                     console.log(`Replayed ${pending.length} pending notifications for user ${userId}`);
