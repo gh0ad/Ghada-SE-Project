@@ -8,6 +8,31 @@ const { Server } = require('socket.io');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const cors = require('cors');
+
+// Simple in-memory rate limiter
+const rateLimitStore = new Map();
+
+function checkRateLimit(key, maxRequests = 10, windowMs = 15 * 60 * 1000) { // 10 requests per 15 minutes
+    const now = Date.now();
+    const windowStart = now - windowMs;
+    
+    if (!rateLimitStore.has(key)) {
+        rateLimitStore.set(key, []);
+    }
+    
+    const requests = rateLimitStore.get(key);
+    // Remove old requests
+    const validRequests = requests.filter(time => time > windowStart);
+    
+    if (validRequests.length >= maxRequests) {
+        return false; // Rate limit exceeded
+    }
+    
+    validRequests.push(now);
+    rateLimitStore.set(key, validRequests);
+    return true;
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -44,6 +69,41 @@ function getRequestUserId(req) {
     } catch (e) {
         return null;
     }
+}
+
+// Input validation helpers
+function validateRegistrationInput({ username, email, password, studentId, university, major, phone }) {
+    const errors = [];
+    
+    if (!username || username.length < 3 || username.length > 50) {
+        errors.push('Username must be 3-50 characters');
+    }
+    
+    if (!email || !email.endsWith('@sm.imamu.edu.sa')) {
+        errors.push('Must use valid university email (@sm.imamu.edu.sa)');
+    }
+    
+    if (!password || password.length < 8) {
+        errors.push('Password must be at least 8 characters');
+    }
+    
+    if (!studentId || !/^\d{9,10}$/.test(studentId)) {
+        errors.push('Student ID must be 9-10 digits');
+    }
+    
+    if (!university || university.length < 2) {
+        errors.push('University is required');
+    }
+    
+    if (!major || major.length < 2) {
+        errors.push('Major is required');
+    }
+    
+    if (!phone || !/^(\+966|0)?[5][0-9]{8}$/.test(phone)) {
+        errors.push('Must be valid Saudi phone number');
+    }
+    
+    return errors;
 }
 
 function mapUserRow(row) {
@@ -162,8 +222,12 @@ async function notifyAdmins(event, payload) {
     }
 }
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(cors({
+    origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    credentials: true
+}));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static('public'));
 app.use(express.static(__dirname));
 
@@ -251,10 +315,18 @@ const pendingNotifications = new Map();
 
 app.post('/api/register', async (req, res) => {
     try {
+        // Rate limiting
+        const clientIP = req.ip || req.connection.remoteAddress;
+        if (!checkRateLimit(`register_${clientIP}`)) {
+            return res.status(429).json({ error: 'Too many registration attempts. Please try again later.' });
+        }
+        
         const { username, email, password, studentId, university, major, phone } = req.body;
         
-        if (!email.endsWith('@sm.imamu.edu.sa')) {
-            return res.status(400).json({ error: 'Must use university email (sm.imamu.edu.sa)' });
+        // Validate input
+        const validationErrors = validateRegistrationInput({ username, email, password, studentId, university, major, phone });
+        if (validationErrors.length > 0) {
+            return res.status(400).json({ error: validationErrors.join(', ') });
         }
         
         // Step 1: Create user in Supabase Auth
@@ -390,6 +462,12 @@ app.post('/api/check-email-verified', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
     try {
+        // Rate limiting
+        const clientIP = req.ip || req.connection.remoteAddress;
+        if (!checkRateLimit(`login_${clientIP}`, 5, 15 * 60 * 1000)) { // 5 attempts per 15 minutes
+            return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
+        }
+        
         const { email, password } = req.body;
         
         // Step 1: Verify credentials with Supabase Auth

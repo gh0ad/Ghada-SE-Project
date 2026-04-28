@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Amam</title>
+    <script src="/assets/common.js"></script>
     <style>
         * {
             margin: 0;
@@ -1052,17 +1053,25 @@
         </div>
     </div>
 
-    <!-- Success Modal -->
-    <div id="successModal" class="modal">
+    </div>
+
+    <!-- Common Modal -->
+    <div id="commonModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 class="modal-title">✅ Success</h2>
+                <h2 class="modal-title">Modal Title</h2>
                 <button class="close-btn" onclick="closeModal()">×</button>
             </div>
-            <p id="successMessage" style="color: #475569; line-height: 1.6;"></p>
-            <button class="create-btn" style="margin-top: 1.5rem;" onclick="closeModal()">Close</button>
+            <div class="modal-icon">ℹ️</div>
+            <p class="modal-text">Modal message goes here</p>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-primary" onclick="closeModal()">OK</button>
+            </div>
         </div>
     </div>
+
+    <!-- Notifications Container -->
+    <div class="notifications"></div>
 
     <script>
         // Check admin session
@@ -1169,12 +1178,7 @@
 
         // Modal Functions
         function showSuccess(message) {
-            document.getElementById('successMessage').textContent = message;
-            document.getElementById('successModal').classList.add('active');
-        }
-
-        function closeModal() {
-            document.getElementById('successModal').classList.remove('active');
+            showModal('Success', message, 'success', '✅');
         }
 
         function logout() {
@@ -1184,7 +1188,7 @@
 
         // Close modal on outside click
         window.onclick = function(event) {
-            const modal = document.getElementById('successModal');
+            const modal = document.getElementById('commonModal');
             if (event.target === modal) {
                 closeModal();
             }

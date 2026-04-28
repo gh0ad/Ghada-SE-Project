@@ -5,461 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Driver Dashboard - Amam</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f8fafc;
-            color: #1e3a8a;
-        }
-
-        /* Header */
-        .header {
-            background: linear-gradient(135deg, #1e40af, #2563eb);
-            color: white;
-            padding: 1.5rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 4px 15px rgba(30, 58, 138, 0.2);
-        }
-
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .logo {
-            font-size: 2rem;
-        }
-
-        .user-info h2 {
-            font-size: 1.2rem;
-            margin-bottom: 0.2rem;
-        }
-
-        .user-info p {
-            font-size: 0.9rem;
-            opacity: 0.9;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-        }
-
-        .status-toggle {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            background: rgba(255, 255, 255, 0.2);
-            padding: 0.75rem 1.5rem;
-            border-radius: 50px;
-            border: 2px solid white;
-        }
-
-        .toggle-switch {
-            position: relative;
-            width: 60px;
-            height: 30px;
-            background: #dc2626;
-            border-radius: 30px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .toggle-switch.active {
-            background: #10b981;
-        }
-
-        .toggle-slider {
-            position: absolute;
-            top: 3px;
-            left: 3px;
-            width: 24px;
-            height: 24px;
-            background: white;
-            border-radius: 50%;
-            transition: all 0.3s;
-        }
-
-        .toggle-switch.active .toggle-slider {
-            left: 33px;
-        }
-
-        .logout-btn {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: 2px solid white;
-            padding: 0.75rem 1.5rem;
-            border-radius: 50px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s;
-        }
-
-        .logout-btn:hover {
-            background: white;
-            color: #2563eb;
-        }
-
-        /* Main Container */
-        .container {
-            display: grid;
-            grid-template-columns: 400px 1fr 350px;
-            height: calc(100vh - 100px);
-            gap: 0;
-        }
-
-        /* Left Panel - Ride Requests */
-        .requests-panel {
-            background: white;
-            padding: 2rem;
-            overflow-y: auto;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-        }
-
-        .panel-title {
-            font-size: 1.5rem;
-            margin-bottom: 1.5rem;
-            color: #1e40af;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .earnings-badge {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 1rem;
-            font-weight: 600;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .stat-card {
-            background: linear-gradient(135deg, #eff6ff, #dbeafe);
-            padding: 1rem;
-            border-radius: 12px;
-            text-align: center;
-        }
-
-        .stat-number {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: #1e40af;
-            margin-bottom: 0.25rem;
-        }
-
-        .stat-label {
-            font-size: 0.85rem;
-            color: #64748b;
-        }
-
-        .ride-request {
-            background: white;
-            border: 2px solid #e2e8f0;
-            border-radius: 15px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            transition: all 0.3s;
-        }
-
-        .ride-request:hover {
-            border-color: #3b82f6;
-            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.1);
-        }
-
-        .request-header {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        .student-avatar {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #3b82f6, #60a5fa);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-        }
-
-        .student-details h4 {
-            margin-bottom: 0.25rem;
-            color: #1e40af;
-        }
-
-        .student-details p {
-            font-size: 0.85rem;
-            color: #64748b;
-        }
-
-        .request-info {
-            margin-bottom: 1rem;
-        }
-
-        .info-row {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 0.5rem;
-            font-size: 0.95rem;
-            color: #475569;
-        }
-
-        .info-icon {
-            font-size: 1.1rem;
-        }
-
-        .distance-badge {
-            display: inline-block;
-            background: #fef3c7;
-            color: #92400e;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-top: 0.5rem;
-        }
-
-        .request-actions {
-            display: flex;
-            gap: 0.75rem;
-        }
-
-        .accept-btn {
-            flex: 1;
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: white;
-            border: none;
-            padding: 0.875rem;
-            border-radius: 10px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .accept-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
-        }
-
-        .decline-btn {
-            flex: 1;
-            background: white;
-            color: #dc2626;
-            border: 2px solid #dc2626;
-            padding: 0.875rem;
-            border-radius: 10px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .decline-btn:hover {
-            background: #dc2626;
-            color: white;
-        }
-
-        /* Active Ride Section */
-        .active-ride {
-            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-            border: 2px solid #10b981;
-            border-radius: 15px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        .active-ride h3 {
-            color: #065f46;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .complete-btn {
-            width: 100%;
-            background: linear-gradient(135deg, #2563eb, #3b82f6);
-            color: white;
-            border: none;
-            padding: 1rem;
-            border-radius: 10px;
-            font-weight: 600;
-            cursor: pointer;
-            margin-top: 1rem;
-        }
-
-        /* Map Container */
-        .map-container {
-            position: relative;
-            background: #e2e8f0;
-        }
-
-        #map {
-            width: 100%;
-            height: 100%;
-        }
-
-        .map-controls {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .map-btn {
-            background: white;
-            border: none;
-            padding: 0.75rem;
-            border-radius: 8px;
-            cursor: pointer;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            font-size: 1.2rem;
-        }
-
-        .map-btn:hover {
-            background: #f1f5f9;
-        }
-
-        /* Chat Panel */
-        .chat-panel {
-            background: white;
-            display: flex;
-            flex-direction: column;
-            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
-        }
-
-        .chat-header {
-            background: linear-gradient(135deg, #1e40af, #2563eb);
-            color: white;
-            padding: 1.5rem;
-            font-size: 1.2rem;
-            font-weight: 600;
-        }
-
-        .chat-messages {
-            flex: 1;
-            padding: 1.5rem;
-            overflow-y: auto;
-            background: #f8fafc;
-        }
-
-        .message {
-            margin-bottom: 1rem;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .message.sent {
-            align-items: flex-end;
-        }
-
-        .message.received {
-            align-items: flex-start;
-        }
-
-        .message-bubble {
-            max-width: 80%;
-            padding: 0.75rem 1rem;
-            border-radius: 15px;
-            margin-bottom: 0.25rem;
-        }
-
-        .message.sent .message-bubble {
-            background: linear-gradient(135deg, #2563eb, #3b82f6);
-            color: white;
-            border-bottom-right-radius: 5px;
-        }
-
-        .message.received .message-bubble {
-            background: white;
-            color: #1e3a8a;
-            border: 1px solid #e2e8f0;
-            border-bottom-left-radius: 5px;
-        }
-
-        .message-time {
-            font-size: 0.75rem;
-            color: #94a3b8;
-            padding: 0 0.5rem;
-        }
-
-        .chat-input-container {
-            padding: 1rem;
-            background: white;
-            border-top: 1px solid #e2e8f0;
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .chat-input {
-            flex: 1;
-            padding: 0.875rem;
-            border: 2px solid #e2e8f0;
-            border-radius: 25px;
-            font-size: 0.95rem;
-        }
-
-        .chat-input:focus {
-            outline: none;
-            border-color: #3b82f6;
-        }
-
-        .send-btn {
-            background: linear-gradient(135deg, #2563eb, #3b82f6);
-            color: white;
-            border: none;
-            padding: 0.875rem 1.5rem;
-            border-radius: 25px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s;
-        }
-
-        .send-btn:hover {
-            transform: scale(1.05);
-        }
-
-        .no-requests {
-            text-align: center;
-            padding: 3rem 1rem;
-            color: #94a3b8;
-        }
-
-        .no-requests-icon {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-        }
-
-        @media (max-width: 1200px) {
-            .container {
-                grid-template-columns: 1fr;
-                grid-template-rows: auto 400px auto;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/assets/dashboard.css">
+    <script src="/assets/common.js"></script>
 </head>
 <body>
     <!-- Header -->
@@ -581,17 +128,7 @@
         // Initialize Socket.io
         const socket = io();
 
-        // In-app notification helper
-        function showNotification(message) {
-            try {
-                if (window && window.alert) {
-                    // fallback to simple alert for driver dashboard
-                    alert(message);
-                }
-            } catch (e) {
-                console.warn('Notification error', e);
-            }
-        }
+
 
         // Listen for driver status updates (approve/reject)
         socket.on('driverStatusUpdated', (data) => {
@@ -606,10 +143,10 @@
                 sessionStorage.setItem('userData', JSON.stringify(userData));
 
                 if (data.approved) {
-                    showNotification('Your driver application was approved. Driver features are now enabled. The page will reload to activate them.');
+                    showNotification('Your driver application was approved. Driver features are now enabled. The page will reload to activate them.', 'success');
                     setTimeout(() => { location.reload(); }, 1200);
                 } else {
-                    showNotification('Your driver application was rejected.' + (data.reason ? '\nReason: ' + data.reason : ''));
+                    showNotification('Your driver application was rejected.' + (data.reason ? '\nReason: ' + data.reason : ''), 'error');
                 }
             } catch (e) {
                 console.warn('Error handling driverStatusUpdated:', e);
@@ -1147,10 +684,25 @@
             }
         }, 5000);
 
-        function logout() {
-            sessionStorage.clear();
-            window.location.href = 'login.html';
-        }
+
     </script>
+
+    <!-- Common Modal -->
+    <div id="commonModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Modal Title</h2>
+                <button class="close-btn" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-icon">ℹ️</div>
+            <p class="modal-text">Modal message goes here</p>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-primary" onclick="closeModal()">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications Container -->
+    <div class="notifications"></div>
 </body>
 </html>
