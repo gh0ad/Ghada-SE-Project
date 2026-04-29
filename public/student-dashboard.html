@@ -136,16 +136,17 @@
         // Load profile information
         async function loadProfile() {
             try {
-                const response = await fetch('/api/profile', {
+                const response = await fetch('/api/users/me', {
                     headers: {
                         'Authorization': `Bearer ${sessionStorage.getItem('authToken')}`
                     }
                 });
                 const data = await response.json();
-                if (data.success) {
-                    document.getElementById('profileName').value = data.user.name;
-                    document.getElementById('profileEmail').value = data.user.email;
-                    document.getElementById('profilePhone').value = data.user.phone;
+                if (response.ok) {
+                    document.getElementById('profileUsername').value = data.username;
+                    document.getElementById('profileEmail').value = data.email;
+                    document.getElementById('profilePhone').value = data.phone || '';
+                    document.getElementById('profileMajor').value = data.major || '';
                 }
             } catch (error) {
                 console.error('Profile load error:', error);
@@ -155,7 +156,7 @@
         // Load user's rides
         async function loadMyRides() {
             try {
-                const response = await fetch('/api/rides/student', {
+                const response = await fetch('/api/rides/my-rides', {
                     headers: {
                         'Authorization': `Bearer ${sessionStorage.getItem('authToken')}`
                     }
@@ -191,7 +192,7 @@
                     </div>
                     <div class="ride-details">
                         <div class="ride-route">
-                            <span class="pickup">📍 ${ride.pickup_location}</span>
+                            <span class="pickup">📍 ${ride.pickup}</span>
                             <span class="arrow">→</span>
                             <span class="destination">🏁 ${ride.destination}</span>
                         </div>
@@ -210,13 +211,13 @@
 
             const formData = new FormData(this);
             const rideData = {
-                pickup_location: formData.get('pickup'),
+                pickup: formData.get('pickup'),
                 destination: formData.get('destination'),
                 passengers: parseInt(formData.get('passengers'))
             };
 
             try {
-                const response = await fetch('/api/rides/book', {
+                const response = await fetch('/api/rides', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

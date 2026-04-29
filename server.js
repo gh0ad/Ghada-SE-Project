@@ -9,6 +9,7 @@ const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
+const helmet = require('helmet');
 
 // Simple in-memory rate limiter
 const rateLimitStore = new Map();
@@ -39,7 +40,7 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'amam_secret_key';
+const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_KEY = process.env.ADMIN_KEY || null;
 
 // Helper utilities for authentication and socket/event delivery
@@ -226,6 +227,7 @@ app.use(cors({
     origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000', 'http://127.0.0.1:3000'],
     credentials: true
 }));
+app.use(helmet());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static('public'));
@@ -337,7 +339,8 @@ app.post('/api/register', async (req, res) => {
         });
 
         if (authError) {
-            return res.status(400).json({ error: authError.message });
+            console.error('Supabase auth error:', authError);
+            return res.status(400).json({ error: 'Invalid registration data' });
         }
 
         const authUserId = authData.user.id;
@@ -383,7 +386,7 @@ app.post('/api/register', async (req, res) => {
         if (error.code === '23505') {
             res.status(400).json({ error: 'Username, email, or student ID already exists' });
         } else {
-            res.status(500).json({ error: 'Registration failed: ' + error.message });
+            res.status(500).json({ error: 'Registration failed' });
         }
     }
 });
@@ -414,7 +417,8 @@ app.post('/api/send-verification-email', async (req, res) => {
         });
 
         if (resendError) {
-            return res.status(400).json({ error: resendError.message });
+            console.error('Resend error:', resendError);
+            return res.status(400).json({ error: 'Failed to send verification email' });
         }
 
         res.json({ 
@@ -441,7 +445,8 @@ app.post('/api/check-email-verified', async (req, res) => {
         const { data, error } = await supabase.auth.admin.listUsers();
 
         if (error) {
-            return res.status(400).json({ error: error.message });
+            console.error('List users error:', error);
+            return res.status(400).json({ error: 'Failed to check email verification' });
         }
 
         const user = data.users.find(u => u.email === email);
@@ -558,7 +563,7 @@ app.post('/api/driver-application', async (req, res) => {
         });
     } catch (error) {
         console.error('Driver application error:', error);
-        res.status(500).json({ error: 'Application submission failed: ' + (error.message || error) });
+        res.status(500).json({ error: 'Application submission failed' });
     }
 });
 
@@ -984,8 +989,7 @@ app.post('/api/users/update', async (req, res) => {
         res.json({ success: true, user: mapped });
     } catch (error) {
         console.error('Update profile error:', error);
-        // Provide a clearer error message to the client for easier debugging (avoid leaking secrets)
-        res.status(500).json({ error: 'Failed to update profile: ' + (error && error.message ? error.message : String(error)) });
+        res.status(500).json({ error: 'Failed to update profile' });
     }
 });
 
@@ -1034,7 +1038,9 @@ app.post('/api/rides', async (req, res) => {
         const destination = normalizePlace(rawDestination);
 
         // Ensure required fields exist (studentId at minimum)
-        if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
+        if (!studentId || typeof studentId !== 'string') return res.status(400).json({ error: 'Valid studentId required' });
+        if (passengers && (typeof passengers !== 'number' || passengers < 1 || passengers > 4)) return res.status(400).json({ error: 'Passengers must be 1-4' });
+        if (fare !== null && fare !== undefined && (typeof fare !== 'number' || fare < 0)) return res.status(400).json({ error: 'Fare must be a positive number' });
 
         const result = await pool.query(
             `INSERT INTO rides 
@@ -1052,7 +1058,7 @@ app.post('/api/rides', async (req, res) => {
         res.json({ success: true, ride });
     } catch (error) {
         console.error('Create ride error:', error, 'payload:', { body: req.body });
-        res.status(500).json({ error: 'Failed to create ride', details: error && error.message ? error.message : String(error) });
+        res.status(500).json({ error: 'Failed to create ride' });
     }
 });
 
@@ -1060,7 +1066,19 @@ app.post('/api/rides', async (req, res) => {
 app.post('/api/emergency', async (req, res) => {
     try {
         const { userId, location, message } = req.body || {};
-        const alertPayload = { fromUserId: userId || null, location: location || null, message: message || 'Emergency alert', timestamp: Date.now() };
+        
+        // Validate inputs
+        if (!userId || typeof userId !== 'string') {
+            return res.status(400).json({ error: 'Valid userId required' });
+        }
+        if (location && typeof location !== 'string') {
+            return res.status(400).json({ error: 'Location must be a string' });
+        }
+        if (message && typeof message !== 'string') {
+            return res.status(400).json({ error: 'Message must be a string' });
+        }
+        
+        const alertPayload = { fromUserId: userId, location: location || null, message: message || 'Emergency alert', timestamp: Date.now() };
 
         try {
             await notifyAdmins('emergencyAlert', alertPayload);
@@ -1132,6 +1150,31 @@ app.get('/api/rides/available', async (req, res) => {
     } catch (error) {
         console.error('Get available rides error:', error);
         res.status(500).json({ error: 'Failed to get available rides' });
+    }
+});
+
+// Get current user's rides
+app.get('/api/rides/my-rides', async (req, res) => {
+    try {
+        const userId = getRequestUserId(req);
+        if (!userId) return res.status(401).json({ error: 'Missing or invalid token' });
+
+        const result = await pool.query(
+            `SELECT r.*, 
+                    COALESCE(d.full_name, d.username) as driver_name, d.phone as driver_phone,
+                    da.vehicle_make, da.vehicle_model, da.vehicle_color, da.plate_number
+             FROM rides r
+             LEFT JOIN users d ON r.driver_id = d.id
+             LEFT JOIN driver_applications da ON d.id = da.user_id
+             WHERE r.student_id = $1
+             ORDER BY r.requested_at DESC`,
+            [userId]
+        );
+        
+        res.json({ success: true, rides: result.rows });
+    } catch (error) {
+        console.error('Get my rides error:', error);
+        res.status(500).json({ error: 'Failed to get rides' });
     }
 });
 
@@ -1653,6 +1696,17 @@ server.on('error', (err) => {
         process.exit(1);
     }
     console.error('Server error:', err);
+    process.exit(1);
+});
+
+// Global error handlers
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
     process.exit(1);
 });
 
