@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Amam</title>
+    <link rel="stylesheet" href="/assets/common.css">
     <script src="/assets/common.js"></script>
     <style>
         * {
@@ -715,7 +716,7 @@
                 <h3 id="adminUsername">Admin User</h3>
                 <p id="adminRole">Administrator</p>
             </div>
-            <button class="logout-btn" onclick="logout()">Logout</button>
+            <button class="logout-btn" onclick="logout('admin-login.html')">Logout</button>
         </div>
     </header>
 
@@ -1055,23 +1056,7 @@
 
     </div>
 
-    <!-- Common Modal -->
-    <div id="commonModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title">Modal Title</h2>
-                <button class="close-btn" onclick="closeModal()">×</button>
-            </div>
-            <div class="modal-icon">ℹ️</div>
-            <p class="modal-text">Modal message goes here</p>
-            <div class="modal-buttons">
-                <button class="modal-btn modal-btn-primary" onclick="closeModal()">OK</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Notifications Container -->
-    <div class="notifications"></div>
+    <div data-include="/assets/common-modal.html"></div>
 
     <script>
         // Check admin session
@@ -1176,22 +1161,9 @@
             document.getElementById('newAdminEmail').value = '';
         }
 
-        // Modal Functions
+        // Modal helper
         function showSuccess(message) {
             showModal('Success', message, 'success', '✅');
-        }
-
-        function logout() {
-            sessionStorage.clear();
-            window.location.href = 'admin-login.html';
-        }
-
-        // Close modal on outside click
-        window.onclick = function(event) {
-            const modal = document.getElementById('commonModal');
-            if (event.target === modal) {
-                closeModal();
-            }
         }
     </script>
 </body>

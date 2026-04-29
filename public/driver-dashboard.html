@@ -6,6 +6,7 @@
     <title>Driver Dashboard - Amam</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="/assets/dashboard.css">
+    <link rel="stylesheet" href="/assets/common.css">
     <script src="/assets/common.js"></script>
 </head>
 <body>
@@ -687,22 +688,6 @@
 
     </script>
 
-    <!-- Common Modal -->
-    <div id="commonModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title">Modal Title</h2>
-                <button class="close-btn" onclick="closeModal()">×</button>
-            </div>
-            <div class="modal-icon">ℹ️</div>
-            <p class="modal-text">Modal message goes here</p>
-            <div class="modal-buttons">
-                <button class="modal-btn modal-btn-primary" onclick="closeModal()">OK</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Notifications Container -->
-    <div class="notifications"></div>
+    <div data-include="/assets/common-modal.html"></div>
 </body>
 </html>

@@ -1,6 +1,38 @@
 // Common JavaScript functions for the application
 
-// Modal functions
+async function loadHTMLIncludes() {
+    const placeholders = document.querySelectorAll('[data-include]');
+    await Promise.all(Array.from(placeholders).map(async placeholder => {
+        const url = placeholder.dataset.include;
+        if (!url) return;
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Failed to load include: ${url}`);
+            placeholder.innerHTML = await response.text();
+        } catch (error) {
+            console.error('Include load error:', error);
+        }
+    }));
+}
+
+function initCommonUI() {
+    const modal = document.getElementById('commonModal');
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeModal();
+        }
+    });
+}
+
 function showModal(title, message, type = 'info', icon = 'ℹ️') {
     const modal = document.getElementById('commonModal');
     if (!modal) return;
@@ -10,7 +42,8 @@ function showModal(title, message, type = 'info', icon = 'ℹ️') {
     const textEl = modal.querySelector('.modal-text');
     const iconEl = modal.querySelector('.modal-icon');
 
-    // Remove previous type classes
+    if (!content || !titleEl || !textEl || !iconEl) return;
+
     content.className = 'modal-content';
     if (type !== 'info') {
         content.classList.add(`modal-${type}`);
@@ -19,18 +52,16 @@ function showModal(title, message, type = 'info', icon = 'ℹ️') {
     titleEl.textContent = title;
     textEl.textContent = message;
     iconEl.textContent = icon;
-
     modal.classList.add('show');
 }
 
-function closeModal() {
-    const modal = document.getElementById('commonModal');
+function closeModal(modalId = 'commonModal') {
+    const modal = document.getElementById(modalId);
     if (modal) {
         modal.classList.remove('show');
     }
 }
 
-// Notification functions
 function showNotification(message, type = 'info', duration = 5000) {
     const container = document.querySelector('.notifications');
     if (!container) return;
@@ -44,7 +75,6 @@ function showNotification(message, type = 'info', duration = 5000) {
 
     container.appendChild(notification);
 
-    // Auto remove after duration
     setTimeout(() => {
         if (notification.parentElement) {
             notification.remove();
@@ -52,63 +82,49 @@ function showNotification(message, type = 'info', duration = 5000) {
     }, duration);
 }
 
-// Tab switching
-function switchTab(tabId) {
-    // Hide all tab contents
+function switchTab(tabId, event) {
     document.querySelectorAll('.tab-content').forEach(content => {
         content.classList.remove('active');
     });
 
-    // Remove active class from all tabs
     document.querySelectorAll('.nav-tab').forEach(tab => {
         tab.classList.remove('active');
     });
 
-    // Show selected tab content
     const selectedContent = document.getElementById(tabId);
     if (selectedContent) {
         selectedContent.classList.add('active');
     }
 
-    // Add active class to clicked tab
-    const clickedTab = document.querySelector(`[onclick="switchTab('${tabId}')"]`);
+    const clickedTab = event?.target || window.event?.target || document.querySelector(`[onclick="switchTab('${tabId}')"]`);
     if (clickedTab) {
         clickedTab.classList.add('active');
     }
 }
 
-// Logout function
-async function logout() {
+async function logout(redirectUrl = '/login.html') {
     try {
-        const response = await fetch('/api/logout', {
+        await fetch('/api/logout', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${sessionStorage.getItem('authToken')}`
             }
         });
-
-        // Clear session storage
-        sessionStorage.clear();
-
-        // Redirect to login
-        window.location.href = '/login.html';
     } catch (error) {
         console.error('Logout error:', error);
-        // Force logout on client side
+    } finally {
         sessionStorage.clear();
-        window.location.href = '/login.html';
+        window.location.href = redirectUrl;
     }
 }
 
-// Status toggle for driver
 function toggleDriverStatus() {
     const toggle = document.querySelector('.toggle-switch');
-    const isActive = toggle.classList.contains('active');
+    if (!toggle) return;
 
-    // Toggle UI immediately
+    const isActive = toggle.classList.contains('active');
     toggle.classList.toggle('active');
 
-    // Send request to server
     fetch('/api/driver/status', {
         method: 'POST',
         headers: {
@@ -120,7 +136,6 @@ function toggleDriverStatus() {
     .then(response => response.json())
     .then(data => {
         if (!data.success) {
-            // Revert UI if failed
             toggle.classList.toggle('active');
             showNotification('Failed to update status', 'error');
         } else {
@@ -130,13 +145,11 @@ function toggleDriverStatus() {
     })
     .catch(error => {
         console.error('Status update error:', error);
-        // Revert UI
         toggle.classList.toggle('active');
         showNotification('Network error', 'error');
     });
 }
 
-// Form validation helpers
 function validateEmail(email) {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);
@@ -147,22 +160,7 @@ function validatePhone(phone) {
     return re.test(phone);
 }
 
-// Initialize common functionality
-document.addEventListener('DOMContentLoaded', function() {
-    // Close modal when clicking outside
-    const modal = document.getElementById('commonModal');
-    if (modal) {
-        modal.addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeModal();
-            }
-        });
-    }
-
-    // Handle escape key for modal
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            closeModal();
-        }
-    });
+document.addEventListener('DOMContentLoaded', async function() {
+    await loadHTMLIncludes();
+    initCommonUI();
 });

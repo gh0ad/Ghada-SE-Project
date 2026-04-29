@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login  Amam</title>
     <link rel="stylesheet" href="/assets/auth.css">
+    <link rel="stylesheet" href="/assets/common.css">
+    <script src="/assets/common.js"></script>
     <style>
         /* Additional styles specific to login */
         .login-container {
@@ -96,42 +98,10 @@
         </div>
     </div>
 
-    <!-- Generic Message Modal -->
-    <div id="messageModal" class="modal">
-        <div class="modal-content" id="messageModalContent">
-            <div class="modal-icon" id="messageIcon">ℹ️</div>
-            <h2 class="modal-title" id="messageTitle">Message</h2>
-            <p class="modal-text" id="messageText">Message content goes here</p>
-            <div class="modal-buttons">
-                <button class="modal-btn modal-btn-primary" onclick="closeModal('messageModal')">OK</button>
-            </div>
-        </div>
-    </div>
+    <div data-include="/assets/common-modal.html"></div>
 
     <script>
         // Helper function to show message modals
-        function showModal(title, message, type = 'info', icon = 'ℹ️', isVerificationNeeded = false) {
-            const modal = document.getElementById('messageModal');
-            const content = document.getElementById('messageModalContent');
-            
-            // Remove previous type classes
-            content.className = 'modal-content';
-            if (type !== 'info') {
-                content.classList.add(`modal-${type}`);
-            }
-            
-            document.getElementById('messageTitle').textContent = title;
-            document.getElementById('messageText').textContent = message;
-            document.getElementById('messageIcon').textContent = icon;
-            
-            modal.classList.add('show');
-        }
-
-        function closeModal(modalId = 'messageModal') {
-            const modal = document.getElementById(modalId);
-            modal.classList.remove('show');
-        }
-
         // Password toggle functionality
         const togglePassword = document.getElementById('togglePassword');
         const passwordInput = document.getElementById('password');

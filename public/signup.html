@@ -5,15 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up - Amam</title>
     <link rel="stylesheet" href="/assets/auth.css">
+    <link rel="stylesheet" href="/assets/common.css">
+    <script src="/assets/common.js"></script>
     <style>
         /* Additional styles specific to signup */
         body {
             overflow: auto; /* Allow scrolling for signup form */
         }
 
-        .form-group {
-            margin-bottom: 1.25rem;
-        }
 
         .login-text {
             text-align: center;
@@ -198,6 +197,8 @@
             Already have an account? <a href="login.html">Login here</a>
         </div>
     </div>
+
+    <div data-include="/assets/common-modal.html"></div>
 
     <script>
         const accountType = document.getElementById('accountType');
